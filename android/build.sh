@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ "${GITHUB_ACTIONS:-}" == true ]]; then
+  trap 'echo "::error file=android/build.sh,line=$LINENO::Failed command: $BASH_COMMAND"' ERR
+fi
 cd "$(dirname "$0")/.."
 SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
 if [[ -z "$SDK" ]]; then echo 'Set ANDROID_HOME to an SDK with platform 35 and build-tools 35.0.0.' >&2; exit 1; fi
@@ -22,7 +25,7 @@ javac -encoding UTF-8 -source 8 -target 8 -bootclasspath "$JAR" -d "$WORK/classe
   "${generated[@]}" android/src/com/radekparek/basketrandom/MainActivity.java
 mapfile -t classes < <(find "$WORK/classes" -name '*.class')
 "$BT/d8" --lib "$JAR" --min-api 26 --output "$WORK/dex" "${classes[@]}"
-(cd "$WORK/dex" && zip -q "$WORK/unsigned.apk" classes.dex)
+jar --update --file "$WORK/unsigned.apk" --no-manifest -C "$WORK/dex" classes.dex
 "$BT/zipalign" -f -p 4 "$WORK/unsigned.apk" "$WORK/aligned.apk"
 if [[ -n "${ANDROID_KEYSTORE_BASE64:-}" ]]; then
   : "${ANDROID_KEYSTORE_PASSWORD:?Set ANDROID_KEYSTORE_PASSWORD}"
