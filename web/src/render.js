@@ -6,7 +6,11 @@ const GLYPHS = {
   '0':'0E11131519110E','1':'040C040404040E','2':'0E11010204081F','3':'1E01010601011E','4':'02060A121F0202','5':'1F10101E01011E','6':'0E10101E11110E','7':'1F010204080808','8':'0E11110E11110E','9':'0E11110F01010E',
   '!':'04040404040004','?':'0E110102040004',':':'00040400040400','.':'0000000000000404','-':'0000001F000000','/':'01010204081010','+':'0004041F040400',"'":'04040800000000',' ':'00000000000000'
 };
-const FONT = Object.fromEntries(Object.entries(GLYPHS).map(([k, v]) => [k, Array.from({ length: 7 }, (_, i) => parseInt(v.slice(i * 2, i * 2 + 2), 16))]));
+const FONT = {};
+for (const key of Object.keys(GLYPHS)) {
+  const value = GLYPHS[key];
+  FONT[key] = Array.from({ length: 7 }, (_, i) => parseInt(value.slice(i * 2, i * 2 + 2), 16));
+}
 export const textWidth = (text, scale) => (String(text).length * 6 - 1) * scale;
 export function text(ctx, value, x, y, scale = 1, color = '#fff', align = 'left', shadow = false) {
   const str = String(value).toUpperCase();

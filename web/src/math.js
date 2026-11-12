@@ -39,6 +39,11 @@ export class Random {
 }
 
 export function cleanName(value) {
-  return String(value ?? '').normalize('NFKC')
-    .replace(/[^\p{L}\p{N} _.-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 16) || 'PLAYER';
+  let out = '';
+  for (const ch of Array.from(String(value == null ? '' : value).normalize('NFKC'))) {
+    if (/[\u0000-\u001f\u007f<>]/.test(ch)) continue;
+    out += ch;
+    if (out.length >= 16) break;
+  }
+  return out.replace(/\s+/g, ' ').trim() || 'PLAYER';
 }

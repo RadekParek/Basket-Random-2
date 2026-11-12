@@ -11,7 +11,7 @@ const store = {
   get(key, fallback) { try { return localStorage.getItem(`br2:${key}`) ?? fallback; } catch { return fallback; } },
   set(key, value) { try { localStorage.setItem(`br2:${key}`, value); } catch {} }
 };
-const native = location.protocol === 'file:';
+const native = location.protocol === 'file:' || location.hostname === 'appassets.androidplatform.net';
 let nickname = cleanName(store.get('name', 'PLAYER'));
 let endpoint = store.get('server', '');
 let screen = 'menu', mode = null, game = null, bots = [], mySide = 0, paused = false;
@@ -176,7 +176,7 @@ document.addEventListener('keydown', event => {
     if (event.code === 'Escape') { event.preventDefault(); closeModal(); }
     if (event.code === 'Tab') {
       const items = [...$(activeModal).querySelectorAll('button:not([disabled]),input')];
-      const first = items[0], last = items.at(-1);
+      const first = items[0], last = items[items.length - 1];
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     }

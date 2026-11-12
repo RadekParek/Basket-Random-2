@@ -53,6 +53,20 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           VERSION_CODE: ${{ github.run_number }}
         run: bash android/build.sh
+      - name: Verify APK structure and alignment
+        run: |
+          python3 - <<'PY'
+          import glob, zipfile
+          apk = glob.glob('build/apk/*.apk')[0]
+          with zipfile.ZipFile(apk) as z:
+              names = set(z.namelist())
+              for entry in ('classes.dex', 'AndroidManifest.xml', 'resources.arsc', 'assets/index.html', 'assets/game.js', 'assets/style.css'):
+                  assert entry in names, f'missing {entry}'
+              assert z.getinfo('resources.arsc').compress_type == zipfile.ZIP_STORED, 'resources.arsc must be stored uncompressed'
+              print(apk, len(names), 'entries; resources.arsc stored')
+          PY
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging build/apk/*.apk | grep -E 'package:|launchable-activity:'
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 build/apk/*.apk
       - uses: actions/upload-artifact@v7
         with:
           name: BasketRandom-APK

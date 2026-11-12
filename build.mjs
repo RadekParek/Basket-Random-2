@@ -4,7 +4,7 @@ import { gzipSync } from 'node:zlib';
 
 await rm('dist', { recursive: true, force: true });
 await mkdir('dist', { recursive: true });
-const javascript = await build({ entryPoints: ['web/src/main.js'], bundle: true, minify: true, format: 'iife', target: 'es2020', legalComments: 'none', write: false });
+const javascript = await build({ entryPoints: ['web/src/main.js'], bundle: true, minify: true, format: 'iife', target: 'es2017', legalComments: 'none', write: false });
 const css = await build({ entryPoints: ['web/src/style.css'], minify: true, write: false });
 await writeFile('dist/game.js', javascript.outputFiles[0].contents);
 await writeFile('dist/style.css', css.outputFiles[0].contents);

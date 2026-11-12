@@ -41,6 +41,10 @@ fi
 "$BT/apksigner" sign --ks "$KEYSTORE" --ks-key-alias "$ALIAS" --ks-pass "pass:$STORE_PASS" --key-pass "pass:$KEY_PASS" \
   --out "$OUT/$NAME" "$WORK/aligned.apk"
 "$BT/apksigner" verify --verbose "$OUT/$NAME"
+jar tf "$OUT/$NAME" | grep -qx classes.dex
+jar tf "$OUT/$NAME" | grep -qx assets/index.html
+jar tf "$OUT/$NAME" | grep -qx assets/game.js
+jar tf "$OUT/$NAME" | grep -qx assets/style.css
 SIZE=$(stat -c%s "$OUT/$NAME")
 (( SIZE < 262144 )) || { echo "APK exceeded 256 KiB: $SIZE bytes" >&2; exit 1; }
 printf 'APK: %s (%s bytes)\n' "$OUT/$NAME" "$SIZE"
