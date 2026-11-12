@@ -1,0 +1,12 @@
+.git
+node_modules
+dist
+build
+artifacts
+image-search
+android
+tests
+*.apk
+*.keystore
+*.jks
+.env

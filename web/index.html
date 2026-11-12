@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#171c25">
+  <meta name="description" content="Pixel-art ragdoll basketball. Two players, four bots, or a real online opponent.">
+  <title>Basket Random</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+<main id="app" aria-label="Basket Random game">
+  <canvas id="court" width="480" height="270" aria-label="Pixel-art basketball court"></canvas>
+  <section id="menu" class="screen">
+    <h1 class="sr-only">Basket Random</h1>
+    <button id="nickname" class="name-tag" aria-label="Change nickname"><span class="name-label">PLAYER</span><strong id="menu-name">PLAYER</strong><span class="edit-label">EDIT</span></button>
+    <div class="mode-grid">
+      <button class="mode-card gold" data-mode="local"><canvas width="48" height="34" data-icon="local" aria-hidden="true"></canvas><span>2 PLAYER</span><small>ONE SCREEN. TWO RIVALS.</small></button>
+      <button class="mode-card blue" data-mode="online"><canvas width="48" height="34" data-icon="online" aria-hidden="true"></canvas><span>ONLINE</span><small>FIND A REAL OPPONENT.</small></button>
+      <button class="mode-card red" data-mode="bot"><canvas width="48" height="34" data-icon="bot" aria-hidden="true"></canvas><span>VS BOT</span><small>FOUR LEVELS OF TROUBLE.</small></button>
+    </div>
+    <footer class="menu-footer"><button id="sound" class="text-button">SOUND: ON</button><span>FIRST TO 5 · NEW RULES EVERY ROUND</span><div><button id="settings" class="text-button">SERVER</button><button id="help" class="text-button">HOW TO PLAY</button></div></footer>
+  </section>
+  <section id="difficulty" class="screen shade" hidden>
+    <button class="back-button text-button" data-back>← BACK</button>
+    <h2>PICK YOUR TROUBLE</h2><p class="subtitle">Same court. Very different opponents.</p>
+    <div class="difficulty-grid">
+      <button data-level="0"><strong>NOOB</strong><small>Learning to jump.</small></button>
+      <button data-level="1"><strong>CASUAL</strong><small>A fair little scrap.</small></button>
+      <button data-level="2"><strong>PRO</strong><small>Bring your timing.</small></button>
+      <button data-level="3"><strong>LEBRON JAMES</strong><small>No easy buckets.</small></button>
+    </div>
+  </section>
+  <section id="queue" class="screen shade" hidden>
+    <div class="panel queue-panel"><div class="pixel-spinner" aria-hidden="true"></div><h2 id="queue-status">CONNECTING</h2><p id="queue-detail">Looking for another player in the queue.</p><p id="queue-server" class="server-label"></p><button id="cancel-queue" class="button">CANCEL</button><button id="queue-settings" class="text-button">CHANGE SERVER</button></div>
+  </section>
+  <div id="hud" hidden><div class="hud-name left"><span id="name0">PLAYER 1</span><small id="tag0">GOLD</small></div><div id="score">0 : 0</div><div class="hud-name right"><span id="name1">PLAYER 2</span><small id="tag1">RED</small></div><button id="pause" aria-label="Pause game">Ⅱ</button><div id="condition">BACKYARD · NORMAL BALL</div></div>
+  <div id="controls" hidden>
+    <button class="control jump left-jump" data-side="0" data-action="jump"><strong>JUMP</strong><small>W</small></button>
+    <button class="control dunk left-dunk" data-side="0" data-action="dunk"><strong>DUNK</strong><small>S</small></button>
+    <button class="control dunk right-dunk" data-side="1" data-action="dunk"><strong>DUNK</strong><small>↓</small></button>
+    <button class="control jump right-jump" data-side="1" data-action="jump"><strong>JUMP</strong><small>↑</small></button>
+    <span id="single-hint">W / ↑ JUMP · S / ↓ DUNK</span>
+  </div>
+  <section id="pause-panel" class="screen shade" hidden><div class="panel"><h2>PAUSED</h2><p id="pause-note">Take a breath. Find your timing.</p><button id="resume" class="button gold">RESUME</button><button id="pause-name" class="button">CHANGE NICKNAME</button><button id="quit" class="button red">QUIT TO MENU</button></div></section>
+  <section id="result" class="screen shade" hidden><div class="panel"><p id="result-eyebrow" class="subtitle">FINAL SCORE</p><h2 id="result-title">GOLD WINS</h2><p id="result-score" class="final-score">5 : 3</p><p id="result-detail"></p><button id="rematch" class="button gold">REMATCH</button><button id="result-menu" class="button">MAIN MENU</button></div></section>
+  <div id="name-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="name-heading"><form id="name-form" class="panel"><h2 id="name-heading">YOUR NICKNAME</h2><label for="name-input">Visible to your next opponent</label><input id="name-input" maxlength="16" autocomplete="nickname" spellcheck="false" required><p class="field-hint">Up to 16 letters, numbers, spaces, . _ -</p><button class="button gold" type="submit">SAVE NAME</button><button class="button" type="button" data-close>Cancel</button></form></div>
+  <div id="settings-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="settings-heading"><form id="settings-form" class="panel"><h2 id="settings-heading">ONLINE SERVER</h2><label for="server-input">Match server address</label><input id="server-input" type="url" inputmode="url" placeholder="https://your-server.example" autocomplete="off" spellcheck="false"><p id="server-help" class="field-hint">Use the HTTPS address of your deployed server. Leave empty in the browser to use this host.</p><p id="server-error" class="error" role="alert"></p><button class="button gold" type="submit">SAVE SERVER</button><button class="button" type="button" data-close>Cancel</button></form></div>
+  <div id="help-modal" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="help-heading"><div class="panel help-panel"><h2 id="help-heading">ONE JUMP. MANY PROBLEMS.</h2><ul><li><b>JUMP:</b> tap to flop toward the loose ball. Your lean changes the jump.</li><li><b>SHOOT:</b> grab the ball, hold JUMP, then release. The yellow meter is your possession timer.</li><li><b>DUNK:</b> with the ball, launch toward the rim and slam. It has a cooldown and can miss. Without the ball, it is a blocking lunge.</li><li><b>LOCAL:</b> gold uses W / S; red uses ↑ / ↓. On phones, use the buttons on each side.</li><li><b>WIN:</b> first to 5. Rainbow balls count for 2. Courts, bodies, and balls change each round.</li><li><b>ONLINE:</b> both players share a seeded match through your configured server. A disconnect ends the match.</li></ul><button class="button gold" data-close>GOT IT</button></div></div>
+  <div id="toast" role="status" hidden></div>
+  <div id="rotate-hint">LANDSCAPE IS BEST FOR BASKETBALL</div>
+</main>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

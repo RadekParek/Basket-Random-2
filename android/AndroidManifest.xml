@@ -1,0 +1,9 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.radekparek.basketrandom">
+  <uses-permission android:name="android.permission.INTERNET" />
+  <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+  <application android:label="@string/app_name" android:icon="@drawable/ic_ball" android:theme="@style/AppTheme" android:hardwareAccelerated="true" android:usesCleartextTraffic="false" android:allowBackup="false" android:enableOnBackInvokedCallback="false" android:supportsRtl="true">
+    <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="sensorLandscape" android:configChanges="orientation|screenSize|keyboardHidden|screenLayout|smallestScreenSize|uiMode">
+      <intent-filter><action android:name="android.intent.action.MAIN" /><category android:name="android.intent.category.LAUNCHER" /></intent-filter>
+    </activity>
+  </application>
+</manifest>
