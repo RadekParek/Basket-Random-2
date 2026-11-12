@@ -21,8 +21,9 @@ cp dist/index.html dist/game.js dist/style.css "$WORK/assets/"
   --java "$WORK/gen" -A "$WORK/assets" --min-sdk-version 26 --target-sdk-version 35 \
   --version-code "${VERSION_CODE:-1}" --version-name "${VERSION_NAME:-1.0.0}" "$WORK/resources.zip"
 mapfile -t generated < <(find "$WORK/gen" -name '*.java')
+mapfile -t sources < <(find android/src -name '*.java')
 javac -encoding UTF-8 -source 8 -target 8 -bootclasspath "$JAR" -d "$WORK/classes" \
-  "${generated[@]}" android/src/com/radekparek/basketrandom/MainActivity.java
+  "${generated[@]}" "${sources[@]}"
 mapfile -t classes < <(find "$WORK/classes" -name '*.class')
 "$BT/d8" --lib "$JAR" --min-api 26 --output "$WORK/dex" "${classes[@]}"
 jar --update --file "$WORK/unsigned.apk" --no-manifest -C "$WORK/dex" classes.dex

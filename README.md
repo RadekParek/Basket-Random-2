@@ -76,7 +76,9 @@ npm run build
 ANDROID_HOME=/path/to/android/sdk bash android/build.sh
 ```
 
-Output: `build/apk/BasketRandom-debug.apk` or `BasketRandom-release.apk`. The script runs `apksigner verify` and rejects APKs larger than 256 KiB.
+Output: `build/apk/BasketRandom-debug.apk` or `BasketRandom-release.apk`. The script runs `apksigner verify`, checks that the dex/assets are present, and rejects APKs larger than 256 KiB. CI also checks that `resources.arsc` is stored uncompressed and that the APK is aligned and launchable.
+
+The shell loads bundled assets from a local `https://appassets.androidplatform.net` origin instead of `file://`, keeps file-system access disabled, and handles WebView renderer loss. If startup fails, it shows a native diagnostic screen instead of silently closing. A Java crash is saved and shown on the next launch; reopen once more to retry. Because CI debug keys are ephemeral, uninstall an older CI debug build before installing a newer one if Android reports a signature conflict.
 
 ## Size and performance
 

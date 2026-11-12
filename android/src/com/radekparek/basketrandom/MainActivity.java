@@ -22,8 +22,12 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.ScrollView;
 import android.widget.TextView;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 
 public final class MainActivity extends Activity {
     private static final String ASSET_HOST = "appassets.androidplatform.net";
@@ -31,6 +35,15 @@ public final class MainActivity extends Activity {
 
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
+        File crash = new File(getFilesDir(), "last-crash.txt");
+        if (crash.exists()) {
+            String report = readCrash(crash);
+            crash.delete();
+            if (report != null) {
+                showStartupError("Previous launch crashed:\n\n" + report + "\n\nReopen the game to try again.");
+                return;
+            }
+        }
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         setVolumeControlStream(AudioManager.STREAM_MUSIC);
         if (Build.VERSION.SDK_INT >= 28) {
@@ -88,6 +101,22 @@ public final class MainActivity extends Activity {
         } catch (RuntimeException error) {
             showStartupError("Startup failed: " + error.getClass().getSimpleName() + ": " + error.getMessage()
                 + "\n\nUpdate or enable Android System WebView, then reopen Basket Random.");
+        }
+    }
+
+    private String readCrash(File file) {
+        StringBuilder report = new StringBuilder();
+        try {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(new FileInputStream(file), "UTF-8"));
+            try {
+                String line;
+                while ((line = reader.readLine()) != null && report.length() < 12000) report.append(line).append('\n');
+            } finally {
+                reader.close();
+            }
+            return report.toString();
+        } catch (IOException ignored) {
+            return null;
         }
     }
 
