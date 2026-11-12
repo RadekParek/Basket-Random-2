@@ -12,6 +12,7 @@ import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.webkit.WebResourceRequest;
+import android.webkit.ValueCallback;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
@@ -87,8 +88,10 @@ public final class MainActivity extends Activity {
     }
     @Override public void onBackPressed() {
         if (web == null) { finish(); return; }
-        web.evaluateJavascript("!!(window.__back && window.__back())", handled -> {
-            if (!"true".equals(handled)) finish();
+        web.evaluateJavascript("!!(window.__back && window.__back())", new ValueCallback<String>() {
+            @Override public void onReceiveValue(String handled) {
+                if (!"true".equals(handled)) finish();
+            }
         });
     }
     @Override protected void onDestroy() {
