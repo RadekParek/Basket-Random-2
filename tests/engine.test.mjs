@@ -85,17 +85,40 @@ test('ragdolls stay finite and inside the court under chaotic input', () => {
   assert.ok(num(g.ball.y) >= 0 && num(g.ball.y) <= FLOOR);
 });
 
-test('all four bots can play complete matches without a stalemate', () => {
+test('all four bots can play complete 2v2 and 1v1 matches without a stalemate', () => {
   assert.deepEqual(DIFFICULTIES.map(d => d.name), ['NOOB', 'CASUAL', 'PRO', 'LEBRON JAMES']);
-  for (let level = 0; level < 4; level++) {
+  for (const size of [1, 2]) for (let level = 0; level < 4; level++) {
     let completed = 0;
     for (let seed = 1; seed <= 5; seed++) {
-      const g = new Game(seed), a = new Bot(0, level, seed), b = new Bot(1, level, seed + 10);
+      const g = new Game(seed, ['A', 'B'], size), a = new Bot(0, level, seed), b = new Bot(1, level, seed + 10);
       for (let i = 0; i < 24000 && g.phase !== 'over'; i++) g.step([a.input(g), b.input(g)]);
       completed += g.phase === 'over';
     }
-    assert.ok(completed >= 4, `${DIFFICULTIES[level].name} completed only ${completed}/5 matches`);
+    assert.ok(completed >= 4, `${DIFFICULTIES[level].name} ${size}v${size} completed only ${completed}/5 matches`);
   }
+});
+
+test('one button controls both teammates and 1v1 uses a single player per side', () => {
+  const duo = new Game(4, ['A', 'B'], 2), solo = new Game(4, ['A', 'B'], 1);
+  assert.equal(duo.players.length, 4); assert.equal(solo.players.length, 2);
+  assert.deepEqual(duo.players.map(p => [p.side, p.slot]), [[0, 0], [0, 1], [1, 0], [1, 1]]);
+  assert.deepEqual(solo.players.map(p => [p.side, p.slot]), [[0, 0], [1, 0]]);
+  duo.phase = 'play'; duo.step([{ jump: true, dunk: false }, EMPTY]);
+  assert.ok(duo.players[0].jumpCount > 0 && duo.players[1].jumpCount > 0);
+  assert.equal(duo.players[2].jumpCount, 0); assert.equal(duo.players[3].jumpCount, 0);
+  assert.equal(duo.snapshot().teamSize, 2); assert.equal(solo.snapshot().teamSize, 1);
+});
+
+test('jerseys, skin tones, and hair are seeded and reshuffled every round', () => {
+  const a = new Game(12), b = new Game(12);
+  const looks = g => g.players.map(p => [p.skin, p.hair, p.kit]);
+  assert.deepEqual(looks(a), looks(b));
+  const first = looks(a);
+  a.phase = 'play'; a.score(0);
+  for (let i = 0; i < 106; i++) a.step();
+  assert.equal(a.round, 2);
+  assert.notDeepEqual(looks(a), first);
+  assert.ok(a.players.every(p => p.skin >= 0 && p.skin < 6 && p.hair >= 0 && p.hair < 6 && p.kit >= 0 && p.kit < 8));
 });
 
 test('nicknames are bounded and never interpreted as markup', () => {

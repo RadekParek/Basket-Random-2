@@ -1,27 +1,40 @@
-import { FP, fix, num, mul, div, root, sin, cos, clamp, dist2 } from './math.js';
+import { FP, fix, num, mul, div, root, sin, cos, clamp } from './math.js';
 
 export const WIDTH = 480, HEIGHT = 270, FLOOR = 222, RIM_Y = 126;
 export const STEP = 1 / 60;
+export const SHOT_CHARGE_TICKS = 24;
+export const DUNK_COOLDOWN = 150;
 export const HOOPS = [
-  { x: 42, left: 28, right: 56, board: 18, dir: 1 },
-  { x: 438, left: 424, right: 452, board: 462, dir: -1 }
+  { x: 42, left: 28, right: 56, board: 18, dir: 1, y: RIM_Y, width: 28 },
+  { x: 438, left: 424, right: 452, board: 462, dir: -1, y: RIM_Y, width: 28 }
 ];
 export const COURTS = [
-  { name: 'BACKYARD', friction: 0.82, bounce: 0.68 },
+  { name: 'CITY', friction: 0.82, bounce: 0.68 },
   { name: 'BEACH', friction: 0.72, bounce: 0.59 },
   { name: 'SNOW', friction: 0.97, bounce: 0.72 },
-  { name: 'NIGHT COURT', friction: 0.85, bounce: 0.7 }
+  { name: 'GYM', friction: 0.85, bounce: 0.7 }
 ];
 export const BALLS = [
   { name: 'NORMAL BALL', radius: 7, gravity: 700, bounce: 1 },
   { name: 'HEAVY BALL', radius: 8, gravity: 850, bounce: 0.78 },
-  { name: 'BOUNCY BALL', radius: 6, gravity: 650, bounce: 1.18 },
-  { name: 'RAINBOW BALL · 2 PTS', radius: 7, gravity: 700, bounce: 1 }
+  { name: 'LIGHT BALL', radius: 6, gravity: 620, bounce: 1.16 },
+  { name: 'COLORFUL BALL · 2 PTS', radius: 7, gravity: 700, bounce: 1 }
 ];
-export const VARIANTS = ['NORMAL', 'LONG ARMS', 'BIG HEAD', 'SHORT LEGS'];
-const LINKS = [[0,1],[1,2],[1,3],[3,4],[1,5],[5,6],[0,7],[7,8],[0,9],[9,10],[7,9]];
+export const VARIANTS = ['NORMAL', 'LONG ARMS', 'BIG HEAD', 'SHORT ARMS'];
+export const SKIN_TONES = ['#f0c8a0', '#dba87e', '#bb8058', '#9c684c', '#7a4b35', '#5c3826'];
+export const HAIR_COLORS = ['#25252b', '#34302b', '#583b2c', '#8a5a30', '#d4ae48', '#b9b9bd'];
+export const JERSEYS = [
+  { jersey: '#e34f43', trim: '#fff2df', shorts: '#25252b' },
+  { jersey: '#f2c342', trim: '#754a91', shorts: '#25252b' },
+  { jersey: '#3f78c6', trim: '#f4d351', shorts: '#20232a' },
+  { jersey: '#f3f0e6', trim: '#e34f43', shorts: '#25252b' },
+  { jersey: '#7b52a1', trim: '#f2c342', shorts: '#20232a' },
+  { jersey: '#3f9a63', trim: '#fff2df', shorts: '#25252b' },
+  { jersey: '#e87fb0', trim: '#25252b', shorts: '#20232a' },
+  { jersey: '#2b2f38', trim: '#e34f43', shorts: '#15171c' }
+];
+const CORE = [0, 1, 2, 7, 8, 9, 10];
 const RADII = [5, 5, 6, 2, 3, 2, 3, 2, 3, 2, 4];
-const WEIGHTS = [1, 1, 1, 2, 3, 2, 3, 2, 3, 2, 3];
 const gStep = gravity => Math.floor(gravity * FP / 3600);
 
 export function particle(x, y, r, w = 1) {
@@ -36,83 +49,118 @@ function place(p, x, y, vx = 0, vy = 0) {
 }
 function move(p, x, y) { p.x += x; p.y += y; p.px += x; p.py += y; }
 
-export function makePlayer(side, variant = 0) {
-  const x = side ? 326 : 154, d = side ? -1 : 1;
-  const leg = variant === 3 ? 9 : 12, arm = variant === 1 ? 16 : 10;
-  const hip = FLOOR - leg * 2 - 1;
+export function makePlayer(side, variant = 0, slot = 0, look = {}, teamSize = 2) {
+  const x = teamSize === 1 ? (side ? 306 : 174) : side ? (slot ? 306 : 354) : (slot ? 174 : 126);
+  const d = side ? -1 : 1;
+  const leg = 12, arm = variant === 1 ? 15 : variant === 3 ? 8 : 11;
+  const hip = FLOOR - leg * 2 - 2;
   const pts = [
-    [x, hip], [x, hip - 17], [x, hip - 30],
-    [x - 5, hip - 17 + arm], [x - 7, hip - 17 + arm * 2],
-    [x + 5, hip - 17 + arm], [x + 7, hip - 17 + arm * 2],
-    [x - 4, hip + leg], [x - 6, FLOOR - 3],
-    [x + 4, hip + leg], [x + 6, FLOOR - 3]
-  ].map(([a, b], i) => particle(a, b, i === 2 ? (variant === 2 ? 9 : 6) : RADII[i], WEIGHTS[i]));
-  const links = LINKS.map(([a, b]) => ({ a, b, len: root(dist2(pts[a], pts[b])) }));
+    [x, hip], [x, hip - 18], [x, hip - 32],
+    [x - 4, hip - 18 + arm], [x - 5, hip - 18 + arm * 2],
+    [x + 4, hip - 18 + arm], [x + 5, hip - 18 + arm * 2],
+    [x - 2, hip + leg], [x - 4, hip + leg * 2],
+    [x + 2, hip + leg], [x + 4, hip + leg * 2]
+  ].map(([a, b], i) => particle(a, b, i === 2 ? (variant === 2 ? 8 : 6) : RADII[i], 1));
+  const links = [[1, 3], [3, 4], [1, 5], [5, 6]].map(([a, b]) => ({ a, b, len: fix(arm) }));
   return {
-    side, d, variant, pts, links, leg, arm, angle: 0, av: 0,
-    jumpCD: 0, dunkCD: 0, dunkTime: 0, charge: 0, wasJump: false, wasDunk: false,
-    grounded: true, target: side ? 0 : 1, lead: side ? 4 : 6
+    side, d, variant, slot, pts, links, leg, arm,
+    skin: look.skin || 0, hair: look.hair || 0, kit: look.kit || 0, number: slot + 1,
+    angle: 0, av: 0, legAngle: 0, legV: 0, swing: 0, swingV: 0,
+    jumpCD: 0, jumpCount: 0, coyote: 0, dunkCD: 0, dunkTime: 0, charge: 0,
+    lastShotPower: 0, wasJump: false, wasDunk: false, grounded: true,
+    target: side ? 0 : 1, lead: side ? 4 : 6
   };
 }
 
-export function shiftPlayer(p, x, y) {
-  for (const q of p.pts) move(q, fix(x), fix(y));
-}
-
+export function shiftPlayer(p, x, y) { for (const q of p.pts) move(q, fix(x), fix(y)); }
+function impulsePlayer(p, x, y) { for (const q of p.pts) impulse(q, x, y); }
 function integrate(p, gravity, damping) {
   const vx = mul(p.x - p.px, damping), vy = mul(p.y - p.py, damping) + gravity;
-  p.px = p.x; p.py = p.y;
-  p.x += vx; p.y += vy;
+  p.px = p.x; p.py = p.y; p.x += vx; p.y += vy;
 }
+function rotate(x, y, s, c) { return [mul(x, c) - mul(y, s), mul(x, s) + mul(y, c)]; }
 
-function solve(links, pts) {
-  for (const l of links) {
-    const a = pts[l.a], b = pts[l.b];
-    const dx = b.x - a.x, dy = b.y - a.y;
-    const d = root(dx * dx + dy * dy) || 1;
-    const f = div(d - l.len, d), total = a.w + b.w;
-    const cx = mul(dx, f), cy = mul(dy, f);
-    a.x += Math.floor(cx * a.w / total); a.y += Math.floor(cy * a.w / total);
-    b.x -= Math.floor(cx * b.w / total); b.y -= Math.floor(cy * b.w / total);
+function placeCore(p) {
+  const hip = p.pts[0], leg = p.leg;
+  const ts = sin(p.angle), tc = cos(p.angle), ls = sin(p.legAngle), lc = cos(p.legAngle);
+  const torso = [[1, 0, -18], [2, 0, -32]];
+  for (const [id, ox, oy] of torso) {
+    const [x, y] = rotate(fix(ox), fix(oy), ts, tc);
+    p.pts[id].x = hip.x + x; p.pts[id].y = hip.y + y;
+  }
+  const legs = [[7, -2, leg], [8, -4, leg * 2], [9, 2, leg], [10, 4, leg * 2]];
+  for (const [id, ox, oy] of legs) {
+    const [x, y] = rotate(fix(ox), fix(oy), ls, lc);
+    p.pts[id].x = hip.x + x; p.pts[id].y = hip.y + y;
   }
 }
 
-function pose(p, holding, jump, dunk) {
-  const hip = p.pts[0], s = sin(p.angle), c = cos(p.angle), d = p.d;
-  const rotate = (x, y) => [mul(x, c) - mul(y, s), mul(x, s) + mul(y, c)];
-  const armsUp = holding || jump || dunk;
-  const idle = [[0,0],[0,-17],[0,-30],[-5,-17+p.arm],[-7,-17+p.arm*2],[5,-17+p.arm],[7,-17+p.arm*2]];
-  const raised = [[0,0],[0,-17],[0,-30],[-d*7,-12],[-d*11,-23],[d*9,-21],[d*14,-32]];
-  const a = armsUp ? raised : idle;
-  const leg = p.leg, tuck = p.grounded ? 0 : 4;
-  const targets = [...a, [-5,leg-tuck],[-7,leg*2-tuck*2],[5,leg-tuck],[7,leg*2-tuck*2]];
-  for (let i = 1; i < p.pts.length; i++) {
-    const [x, y] = rotate(fix(targets[i][0]), fix(targets[i][1]));
-    const strength = fix(i === 1 ? 0.045 : i === 2 ? 0.018 : armsUp && i <= 6 ? 0.035 : 0.018);
-    const q = p.pts[i];
-    q.x += mul(hip.x + x - q.x, strength);
-    q.y += mul(hip.y + y - q.y, strength);
+function solveArm(chest, elbow, hand, len) {
+  for (let pass = 0; pass < 7; pass++) {
+    let dx = hand.x - elbow.x, dy = hand.y - elbow.y;
+    let d = root(dx * dx + dy * dy) || 1;
+    let f = div(d - len, d), cx = mul(dx, f), cy = mul(dy, f);
+    elbow.x += cx >> 1; elbow.y += cy >> 1;
+    hand.x -= cx - (cx >> 1); hand.y -= cy - (cy >> 1);
+    dx = elbow.x - chest.x; dy = elbow.y - chest.y;
+    d = root(dx * dx + dy * dy) || 1; f = div(d - len, d);
+    elbow.x -= mul(dx, f); elbow.y -= mul(dy, f);
   }
+  const dx = hand.x - elbow.x, dy = hand.y - elbow.y;
+  const d = root(dx * dx + dy * dy) || 1, f = div(d - len, d);
+  hand.x -= mul(dx, f); hand.y -= mul(dy, f);
 }
 
-function ground(p, friction) {
-  let contact = false;
-  for (const q of p.pts) {
-    const floor = fix(FLOOR) - q.r;
-    if (q.y >= floor - fix(1.5)) contact = true;
-    if (q.y > floor) {
-      const vx = q.x - q.px, vy = q.y - q.py;
-      q.y = floor;
-      q.px = q.x - mul(vx, friction);
-      q.py = q.y + Math.max(0, mul(vy, fix(0.08)));
+function poseArms(p, active) {
+  const chest = p.pts[1], s = sin(p.angle), c = cos(p.angle), d = p.d;
+  const swing = clamp(p.swing, 0, FP), reach = p.arm * 2;
+  const phi = mul(swing, fix(2.55)), sx = sin(phi), cy = cos(phi);
+  const lead = p.lead, other = lead === 6 ? 4 : 6;
+  const elbow = lead === 6 ? 5 : 3, otherElbow = other === 6 ? 5 : 3;
+  const bend = mul(fix(1) - swing, fix(3));
+  const targets = new Array(11);
+  const lx = mul(mul(sx, fix(reach)), fix(d)), ly = mul(cy, fix(reach));
+  const ex = mul(lx, fix(0.52)) + mul(bend, fix(d)), ey = mul(ly, fix(0.52)) + bend;
+  targets[elbow] = rotate(ex, ey, s, c); targets[lead] = rotate(lx, ly, s, c);
+  const ox = mul(mul(sx, fix(Math.floor(reach * 0.78))), fix(-d)), oy = mul(cy, fix(Math.floor(reach * 0.78)));
+  targets[otherElbow] = rotate(mul(ox, fix(0.5)) - bend, mul(oy, fix(0.5)) + bend, s, c);
+  targets[other] = rotate(ox, oy, s, c);
+  for (const i of [3, 4, 5, 6]) {
+    const q = p.pts[i], t = targets[i];
+    const strength = fix(active ? (i === lead ? 0.2 : 0.12) : 0.035);
+    q.x += mul(chest.x + t[0] - q.x, strength);
+    q.y += mul(chest.y + t[1] - q.y, strength);
+  }
+  solveArm(chest, p.pts[3], p.pts[4], p.links[0].len);
+  solveArm(chest, p.pts[5], p.pts[6], p.links[2].len);
+}
+
+function groundPlayer(p, friction) {
+  let lowest = -Infinity;
+  for (const i of CORE) lowest = Math.max(lowest, p.pts[i].y + p.pts[i].r);
+  const floor = fix(FLOOR);
+  let contact = lowest >= floor - fix(1);
+  if (lowest > floor) {
+    const overlap = lowest - floor;
+    for (const q of p.pts) move(q, 0, -overlap);
+    const rootP = p.pts[0], vx = rootP.x - rootP.px, vy = rootP.y - rootP.py;
+    if (vy > 0) {
+      const bounce = mul(vy, fix(0.08)), slide = mul(vx, friction);
+      for (const i of CORE) { const q = p.pts[i]; q.py = q.y + bounce; q.px = q.x - slide; }
+      p.av = mul(p.av, fix(0.55)); p.legV = mul(p.legV, fix(0.5));
     }
+  }
+  for (const i of [3, 4, 5, 6]) {
+    const q = p.pts[i], lim = floor - q.r;
+    if (q.y > lim) { const vy = q.y - q.py; q.y = lim; q.py = q.y + Math.max(0, mul(vy, fix(0.05))); }
   }
   return contact;
 }
 
-export function stepPlayer(p, input, court, holding, tick, moveDir = p.d) {
+export function stepPlayer(p, input, court, holding, tick, moveDir = p.d, hoops = HOOPS) {
   if (p.jumpCD > 0) p.jumpCD--;
   if (p.dunkCD > 0) p.dunkCD--;
+  if (p.coyote > 0) p.coyote--;
   const jump = !!input.jump, dunk = !!input.dunk;
   const press = jump && !p.wasJump, dunkPress = dunk && !p.wasDunk;
   p.wasJump = jump; p.wasDunk = dunk;
@@ -122,40 +170,56 @@ export function stepPlayer(p, input, court, holding, tick, moveDir = p.d) {
   if (p.dunkTime > 0) {
     p.dunkTime--;
   } else if (dunkPress && p.dunkCD === 0) {
-    p.dunkCD = 100;
-    p.dunkTime = holding ? 42 : 18;
-    const target = HOOPS[p.target];
-    const distance = target.x - num(hip.x) - p.d * 12;
-    const vx = holding ? clamp(distance / 0.72 / 60, -5.5, 5.5) : direction * 3;
-    for (const q of p.pts) impulse(q, vx, holding ? -6.1 : -4.6);
-    p.av += fix(direction * 0.025);
-  } else if (press && p.jumpCD === 0) {
-    const nearFloor = p.grounded || num(hip.y) > FLOOR - 31;
-    if (nearFloor) {
-      const vx = direction * (1.55 + num(sin(p.angle)) * 1.4);
-      for (const q of p.pts) impulse(q, vx, -5.3);
-      p.av += fix(direction * 0.045);
-      p.jumpCD = 18;
+    p.dunkCD = DUNK_COOLDOWN;
+    const h = hoops[p.target], distance = Math.abs(h.x - num(hip.x));
+    if (holding && distance < 170 && (p.grounded || p.coyote > 0)) {
+      p.dunkTime = 40;
+      const seconds = 0.65;
+      const vx = clamp((h.x - p.d * 12 - num(hip.x)) / seconds, -260, 260) / 60;
+      const vy = clamp((h.y + 24 - num(hip.y) - 0.5 * 700 * seconds * seconds) / seconds, -410, -260) / 60;
+      impulsePlayer(p, vx, vy);
+      p.av = fix(direction * 0.02); p.legV = fix(direction * 0.01);
     } else {
-      for (const q of p.pts) impulse(q, direction * 0.38, -0.22);
-      p.av += fix(direction * 0.035);
-      p.jumpCD = 14;
+      p.dunkTime = 14;
+      impulsePlayer(p, direction * 2.4, -4.6);
+      p.av += fix(direction * 0.02);
+    }
+    p.grounded = false; p.coyote = 0;
+  } else if (press && p.jumpCD === 0) {
+    if (p.grounded || p.coyote > 0) {
+      const vx = clamp(direction * (1.45 + Math.abs(num(sin(p.angle))) * 2 + Math.abs(num(sin(p.legAngle))) * 0.8), -3.4, 3.4);
+      impulsePlayer(p, vx, -5.6);
+      p.av = fix(direction * (0.045 + Math.abs(num(sin(fix(tick * 0.13)))) * 0.015)) + mul(p.av, fix(0.3));
+      p.legV += fix(direction * 0.012);
+      p.jumpCD = 12; p.jumpCount++; p.grounded = false; p.coyote = 0;
+    } else {
+      p.av += fix(direction * 0.018); p.jumpCD = 10;
     }
   }
-  const sway = num(sin(fix((p.side ? 1.7 : 0) + tick / 60 * 2.7))) * 0.24;
-  const target = sway + (jump ? direction * 0.18 : 0);
-  p.av += mul(fix(target) - p.angle, fix(p.grounded ? 0.025 : 0.0018));
-  p.av = mul(p.av, fix(p.grounded ? 0.83 : 0.985));
+  const active = jump || holding || dunk || p.dunkTime > 0;
+  p.swingV += mul((active ? FP : 0) - p.swing, fix(0.12));
+  p.swingV = mul(p.swingV, fix(0.72));
+  p.swing = clamp(p.swing + p.swingV, 0, FP);
+  const sway = num(sin(fix((p.side ? 1.7 : 0) + p.slot * 0.9 + tick / 60 * 2.2))) * 0.12;
+  const target = p.grounded ? sway + (jump ? direction * 0.08 : 0) : p.dunkTime > 0 && holding ? direction * 0.25 : 0;
+  p.av += mul(fix(target) - p.angle, fix(p.grounded ? 0.045 : 0.0015));
+  if (!p.grounded) p.av += mul(sin(p.angle), fix(0.0025));
+  p.av = mul(p.av, fix(p.grounded ? 0.78 : 0.994));
   p.angle += p.av;
   if (p.angle > fix(Math.PI)) p.angle -= fix(Math.PI * 2);
   if (p.angle < -fix(Math.PI)) p.angle += fix(Math.PI * 2);
-  for (const q of p.pts) integrate(q, gStep(700), fix(0.998));
-  pose(p, holding, jump, dunk);
-  for (let i = 0; i < 6; i++) solve(p.links, p.pts);
-  p.grounded = ground(p, fix(COURTS[court].friction));
+  const legTarget = mul(p.angle, fix(p.grounded ? 0.25 : 0.55));
+  p.legV += mul(legTarget - p.legAngle, fix(p.grounded ? 0.06 : 0.015));
+  p.legV = mul(p.legV, fix(p.grounded ? 0.72 : 0.97));
+  p.legAngle = clamp(p.legAngle + p.legV, -fix(1.35), fix(1.35));
+  integrate(hip, gStep(700), fix(0.999));
+  for (const i of [3, 4, 5, 6]) integrate(p.pts[i], gStep(520), fix(0.992));
+  placeCore(p); poseArms(p, active); placeCore(p);
+  p.grounded = groundPlayer(p, fix(COURTS[court].friction));
+  if (p.grounded) p.coyote = 5;
   const x = num(hip.x);
   let lo = 25, hi = 455;
-  if (p.dunkTime === 0 && !outside) { if (p.side === 0) hi = 232; else lo = 248; }
+  if (p.dunkTime === 0 && !outside) { if (p.side === 0) hi = 236; else lo = 244; }
   if (x < lo) shiftPlayer(p, lo - x, 0);
   if (x > hi) shiftPlayer(p, hi - x, 0);
   for (const q of p.pts) if (q.y < q.r) { q.y = q.r; q.py = q.y; }
@@ -170,7 +234,8 @@ export function collidePlayers(a, b) {
     if (d2 >= rr * rr || d2 === 0) continue;
     const d = root(d2), overlap = (rr - d) >> 1;
     const cx = Math.floor(dx * overlap / d), cy = Math.floor(dy * overlap / d);
-    move(p, -cx, -cy); move(q, cx, cy);
+    shiftPlayer(a, -num(cx), -num(cy)); shiftPlayer(b, num(cx), num(cy));
+    a.av -= fix(0.004); b.av += fix(0.004);
   }
 }
 
@@ -184,7 +249,7 @@ function reflect(ball, nx, ny, restitution, surfaceVX = 0, surfaceVY = 0) {
   return true;
 }
 
-export function collideBall(ball, spec, court, players, onBounce) {
+export function collideBall(ball, spec, court, players, onBounce, hoops = HOOPS) {
   const r = fix(spec.radius), gravity = gStep(spec.gravity);
   integrate(ball, gravity, fix(0.999));
   let vx = ball.x - ball.px, vy = ball.y - ball.py;
@@ -203,19 +268,19 @@ export function collideBall(ball, spec, court, players, onBounce) {
     ball.px = ball.x + mul(vx, fix(0.7));
   }
   if (ball.y < r) { ball.y = r; ball.py = ball.y + mul(vy, fix(0.65)); }
-  for (const h of HOOPS) {
-    const bx = fix(h.board);
-    if (ball.y > fix(70) - r && ball.y < fix(139) + r && Math.abs(ball.x - bx) < r + fix(2)) {
+  for (const h of hoops) {
+    const bx = fix(h.board), rim = fix(h.y);
+    if (ball.y > rim - fix(56) - r && ball.y < rim + fix(13) + r && Math.abs(ball.x - bx) < r + fix(2)) {
       const sign = ball.px < bx ? -1 : 1;
       ball.x = bx + sign * (r + fix(2));
       reflect(ball, fix(sign), 0, 0.66);
     }
     for (const x of [h.left, h.right]) {
-      const dx = ball.x - fix(x), dy = ball.y - fix(RIM_Y), rr = r + fix(2.5);
+      const dx = ball.x - fix(x), dy = ball.y - rim, rr = r + fix(2.5);
       const d2 = dx * dx + dy * dy;
       if (d2 < rr * rr && d2 > 0) {
         const d = root(d2), nx = div(dx, d), ny = div(dy, d);
-        ball.x = fix(x) + mul(nx, rr); ball.y = fix(RIM_Y) + mul(ny, rr);
+        ball.x = fix(x) + mul(nx, rr); ball.y = rim + mul(ny, rr);
         if (reflect(ball, nx, ny, 0.64)) onBounce();
       }
     }
@@ -227,8 +292,12 @@ export function collideBall(ball, spec, court, players, onBounce) {
     if (d2 >= rr * rr || d2 === 0) continue;
     const d = root(d2), nx = div(dx, d), ny = div(dy, d), overlap = rr - d;
     ball.x += mul(nx, mul(overlap, fix(0.85))); ball.y += mul(ny, mul(overlap, fix(0.85)));
-    move(q, -mul(nx, mul(overlap, fix(0.15))), -mul(ny, mul(overlap, fix(0.15))));
+    const pushX = mul(nx, mul(overlap, fix(0.15))), pushY = mul(ny, mul(overlap, fix(0.15)));
     const pv = velocity(q);
+    if (i === 0 || i === 1 || i === 2 || i >= 7) {
+      shiftPlayer(p, -num(pushX), -num(pushY));
+      p.av += mul(pushX, fix(0.00002));
+    } else move(q, -pushX, -pushY);
     if (reflect(ball, nx, ny, 0.58, mul(pv.x, fix(0.65)), mul(pv.y, fix(0.65)))) onBounce();
   }
 }

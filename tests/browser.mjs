@@ -33,6 +33,15 @@ try {
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await page.waitForFunction(() => document.querySelectorAll('.control.active').length === 0);
   await page.keyboard.press('Escape'); await page.click('#quit');
+  await page.click('#one-v-one'); await page.locator('#format').waitFor({ state: 'visible' });
+  assert.equal(await page.locator('[data-format]').count(), 3);
+  await page.click('[data-format=local]'); await page.locator('#hud').waitFor({ state: 'visible' });
+  assert.equal(await page.locator('#tag0').textContent(), '1V1'); assert.equal(await page.locator('#tag1').textContent(), '1V1');
+  await page.click('#pause'); await page.click('#quit');
+  await page.click('#one-v-one'); await page.click('[data-format=bot]'); await page.click('[data-level="0"]');
+  await page.locator('#hud').waitFor({ state: 'visible' });
+  assert.equal(await page.locator('#name1').textContent(), 'NOOB'); assert.equal(await page.locator('#tag0').textContent(), '1V1');
+  await page.click('#pause'); await page.click('#quit');
   await page.click('#settings'); await page.fill('#server-input', url); await page.click('#settings-form button[type=submit]');
   await page.click('[data-mode=online]');
   const opponent = await context.newPage(); watch(opponent); await opponent.goto(url);
@@ -49,5 +58,5 @@ try {
   await opponent.close(); await page.locator('#result').waitFor({ state: 'visible' });
   assert.equal(await page.locator('#result-title').textContent(), 'OPPONENT LEFT');
   assert.deepEqual(errors, []);
-  console.log('Browser passed: persistence, all difficulty choices, bot match, pause, multi-touch, real two-page queue, live frames, disconnect.');
+  console.log('Browser passed: persistence, all difficulty choices, bot match, pause, multi-touch, 1v1 menu/local/bot, real two-page queue, live frames, disconnect.');
 } finally { await browser.close(); await app.close(); }

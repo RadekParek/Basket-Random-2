@@ -79,6 +79,22 @@ test('third player remains queued until another player arrives', async t => {
   assert.equal(fixture.app.queue.length, 0);
 });
 
+test('1v1 and 2v2 queues only pair matching team sizes', async t => {
+  const fixture = await setup(t);
+  const soloA = await fixture.client(); soloA.send({ type: 'join', name: 'SoloA', teamSize: 1 });
+  const duoA = await fixture.client(); duoA.send({ type: 'join', name: 'DuoA', teamSize: 2 });
+  await soloA.next('queued'); await duoA.next('queued');
+  assert.equal(fixture.app.queue.length, 2); assert.equal(fixture.app.matches.size, 0);
+  const soloB = await fixture.client(); soloB.send({ type: 'join', name: 'SoloB', teamSize: 1 });
+  const s1 = await soloA.next('start'), s2 = await soloB.next('start');
+  assert.equal(s1.teamSize, 1); assert.equal(s2.teamSize, 1); assert.equal(s1.opponent, 'SoloB');
+  assert.equal(fixture.app.queue.length, 1);
+  const duoB = await fixture.client(); duoB.send({ type: 'join', name: 'DuoB', teamSize: 2 });
+  const d1 = await duoA.next('start'), d2 = await duoB.next('start');
+  assert.equal(d1.teamSize, 2); assert.equal(d2.teamSize, 2); assert.equal(d1.opponent, 'DuoB');
+  assert.equal(fixture.app.queue.length, 0); assert.equal(fixture.app.matches.size, 2);
+});
+
 test('disconnect notifies the opponent and removes the match', async t => {
   const fixture = await setup(t); const { a, b } = await pair(fixture);
   a.close(); await b.next('opponent_left'); assert.equal(fixture.app.matches.size, 0);

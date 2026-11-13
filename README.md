@@ -1,16 +1,17 @@
 # Basket Random 2
 
-A compact, independent pixel-art ragdoll basketball game for Android and the browser. Boots to a main menu with a persistent, editable nickname and three modes:
+A compact, independent pixel-art ragdoll basketball recreation for Android and the browser. It boots to a main menu with a persistent, editable nickname. Normal modes are **2v2**: each side has a front and back player, and one button controls both teammates at once. A separate **1V1** button offers one player per side against a bot, a friend on the same device, or online.
 
-- **2 Player** — two people on one phone, with independent jump and dunk buttons on each side.
-- **Online** — a real FIFO matchmaking queue, shared seeded matches, rematches, and disconnect handling.
+- **2 Player** — two people on one phone, 2v2, with independent jump and dunk buttons on each side.
+- **Online** — a real matchmaking queue, shared seeded matches, rematches, and disconnect handling. 1v1 and 2v2 queues are kept separate.
 - **Vs Bot** — Noob, Casual, Pro, and LeBron James, with different reaction times, shot timing, blocking, and dunk decisions.
+- **1V1** — the same rules with one player per team: vs bot, friendly local, or online.
 
-First to **5 points** wins. Each basket changes the court, ball, and player proportions. Rainbow balls score two. Jumping uses a fixed-step, constraint-based ragdoll; grab the ball, hold jump, and release to shoot. **Dunk is an added mechanic:** it launches a ball-carrying player toward the rim, has a cooldown, and is deliberately less accurate than a well-timed shot. Without the ball it is a blocking lunge.
+First to **5 points** wins. Each basket changes the court, ball, player proportions, jerseys, skin tones, hair, and hoop layout. Rainbow balls score two. Jumping uses a fixed-step, constraint-based ragdoll; grab the ball, hold jump to grip/charge, and release to throw with the swing's momentum. **Dunk is the added mechanic:** it launches a ball-carrying player toward the rim, has a cooldown, and is deliberately missable. Without the ball it is a blocking lunge.
 
 ## Scope and rights
 
-This is a new implementation of the game's general mechanics and pixel-art direction, **not a pixel-identical port**. The repository contained no original source, licensed asset pack, or physics reference implementation. Artwork is drawn in code; no original game assets, fonts, audio, or code were copied. Physics and presentation are tuned approximations. Basket Random and its characters belong to their respective rights holders; this project is not affiliated with them. The MIT license covers only this repository's original implementation.
+This is a new implementation of the game's general mechanics and pixel-art direction, **not a pixel-identical port**. The repository contained no original source, licensed asset pack, or physics reference implementation. Artwork is drawn in code; no original game assets, fonts, audio, or code were copied. Physics and presentation are tuned to reproduce the original one-button ragdoll feel. Basket Random and its characters belong to their respective rights holders; this project is not affiliated with them. The MIT license covers only this repository's original implementation.
 
 ## Run locally
 
@@ -32,13 +33,13 @@ The browser uses its own host for online play when the server field is empty. Tw
 
 ### Controls
 
-| Action | Gold / single player | Red in local mode |
+| Action | Gold side | Red side in local mode |
 |---|---|---|
-| Jump / hold / release to shoot | `W`, `↑`, or `Space` | `↑` |
-| Dunk / blocking lunge | `S` or `↓` | `↓` |
+| Jump / hold / release to shoot | `W` or `Space` | `↑` |
+| Dunk / blocking lunge | `S` | `↓` |
 | Pause | `Esc` or `P` | `Esc` or `P` |
 
-On touch screens, use the four local-mode buttons or the two buttons on your assigned online side. Multi-touch is supported. The yellow possession meter expires automatically. Landscape is enforced in the APK.
+In bot and online modes, `W`, `↑`, or `Space` all control your assigned side; `S` or `↓` dunks. On touch screens, use the four local-mode buttons or the two buttons on your assigned side. Multi-touch is supported. In 2v2, one press moves both teammates. The possession meter expires automatically. Landscape is enforced in the APK.
 
 ## Online hosting
 
@@ -54,9 +55,9 @@ The included `render.yaml` is a Render Blueprint. Create a Blueprint from this r
 docker compose up --build -d
 ```
 
-This exposes port 8080. Put an HTTPS reverse proxy such as Caddy or nginx in front of it, including WebSocket upgrade headers, and forward `/health` for health checks. Point both phones at that HTTPS address using **SERVER** in the main menu. The Android app rejects insecure remote `ws://`/`http://` endpoints. `HOST` defaults to `0.0.0.0`; `PORT` defaults to 8080.
+This exposes port 8080. Put an HTTPS reverse proxy such as Caddy or nginx in front of it, including WebSocket upgrade headers, and forward `/health` for health checks. Point both phones at that HTTPS address using **SERVER** in the main menu. The Android app rejects insecure remote `ws://`/`http://` endpoints. `HOST` defaults to `0.0.0.0`; `PORT` defaults to `8080`.
 
-The server pairs queued sockets, assigns opposite sides and a shared seed, and broadcasts both input masks at 20 Hz. Clients run the same integer fixed-point simulation at 60 Hz, three steps per network frame. Final scores must agree before a rematch is offered. This is a casual input-relay design, **not an anti-cheat-authoritative physics server**. Disconnects end the match; there is no hidden bot substitution or automatic reconnection.
+The server pairs queued sockets by team size, assigns opposite sides and a shared seed, and broadcasts both input masks at 20 Hz. Clients run the same integer fixed-point simulation at 60 Hz, three steps per network frame. Final scores must agree before a rematch is offered. This is a casual input-relay design, **not an anti-cheat-authoritative physics server**. Disconnects end the match; there is no hidden bot substitution or automatic reconnection.
 
 ## Android APK
 
@@ -82,7 +83,7 @@ The shell loads bundled assets from a local `https://appassets.androidplatform.n
 
 ## Size and performance
 
-The renderer uses a fixed **480 × 270** canvas, nearest-neighbor scaling, cached court backgrounds, and no image/font downloads. Physics runs at a fixed 60 Hz with bounded catch-up; rendering interpolates independently. Audio is synthesized after a user gesture. The production web payload is roughly **49 KB raw / 19 KB gzip**; `build.mjs` enforces a 160 KB raw ceiling. The APK has a 256 KiB CI ceiling. Actual APK size is printed in the workflow summary.
+The renderer uses a fixed **480 × 270** canvas, nearest-neighbor scaling, cached court backgrounds, and no image/font downloads. Physics runs at a fixed 60 Hz with bounded catch-up; rendering interpolates independently. Audio is synthesized after a user gesture. The production web payload is roughly **56 KB raw / 21 KB gzip**; `build.mjs` enforces a 160 KB raw ceiling. The APK has a 256 KiB CI ceiling. Actual APK size is printed in the workflow summary.
 
 These are size and implementation budgets, not a claim of measured 60 FPS on every phone. WebView/device performance varies.
 
@@ -94,7 +95,7 @@ npm run build
 CHROME_PATH=/path/to/chrome npm run test:browser
 ```
 
-Tests cover deterministic replays, scoring, rainbow points, match completion, dunk carry/release/cooldown and misses, ragdoll bounds, all bots, nickname sanitization, static-file safety, real WebSocket queue/input/rematch/disconnect behavior, result disagreement, browser persistence, pause, multi-touch, two-page online play, and connection-loss UI.
+Tests cover deterministic replays, scoring, rainbow points, match completion, dunk carry/release/cooldown and misses, ragdoll bounds, all bots in 1v1 and 2v2, one-button team control, per-round appearance reshuffling, nickname sanitization, static-file safety, real WebSocket queue/input/rematch/disconnect behavior, team-size queue separation, result disagreement, browser persistence, pause, multi-touch, 1v1 menu flows, two-page online play, and connection-loss UI.
 
 ## Layout
 

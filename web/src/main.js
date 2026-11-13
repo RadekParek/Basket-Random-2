@@ -4,7 +4,7 @@ import { Renderer, paintIcons } from './render.js';
 import { Sound } from './audio.js';
 import { MatchClient, normalizeEndpoint } from './net.js';
 import { cleanName, num, clamp } from './math.js';
-import { STEP } from './physics.js';
+import { STEP, shiftPlayer } from './physics.js';
 
 const $ = id => document.getElementById(id);
 const store = {
@@ -15,23 +15,26 @@ const native = location.protocol === 'file:' || location.hostname === 'appassets
 let nickname = cleanName(store.get('name', 'PLAYER'));
 let endpoint = store.get('server', '');
 let screen = 'menu', mode = null, game = null, bots = [], mySide = 0, paused = false;
+let teamSize = 2, pendingTeamSize = 2;
 let lastTick = -1, lastFrame = 0, queueSince = 0, queueSecond = -1, resultKind = 'local';
 let accumulator = 0, lastTime = performance.now(), toastTimer = 0, modalReturnFocus = null;
 const demo = new Game(7);
+shiftPlayer(demo.players[0], -62, 0); shiftPlayer(demo.players[1], -71, 0);
+shiftPlayer(demo.players[2], 71, 0); shiftPlayer(demo.players[3], 62, 0);
 const renderer = new Renderer($('court'));
 const sound = new Sound(store.get('sound', '1') === '1');
 const inputs = [{ jump: false, dunk: false }, { jump: false, dunk: false }];
-const previous = new Float64Array(46);
+const previous = new Float64Array(90);
 const controlButtons = [...document.querySelectorAll('.control')];
 const keyMap = new Map();
 let activeModal = null;
 
 function capture(g) {
-  for (let side = 0; side < 2; side++) for (let i = 0; i < 11; i++) {
-    const p = g.players[side].pts[i], offset = side * 22 + i * 2;
+  for (let index = 0; index < g.players.length; index++) for (let i = 0; i < 11; i++) {
+    const p = g.players[index].pts[i], offset = index * 22 + i * 2;
     previous[offset] = p.x; previous[offset + 1] = p.y;
   }
-  previous[44] = g.ball.x; previous[45] = g.ball.y;
+  previous[88] = g.ball.x; previous[89] = g.ball.y;
 }
 function toast(message) {
   clearTimeout(toastTimer); $('toast').textContent = message; $('toast').hidden = false;
@@ -46,6 +49,7 @@ function clearInputs() {
 function setScreen(next) {
   screen = next;
   $('menu').hidden = next !== 'menu';
+  $('format').hidden = next !== 'format';
   $('difficulty').hidden = next !== 'difficulty';
   $('queue').hidden = next !== 'queue';
   $('hud').hidden = !['game', 'result'].includes(next);
@@ -65,31 +69,31 @@ function configureControls() {
   $('single-hint').hidden = local;
   $('single-hint').textContent = mode === 'online' ? `YOU ARE ${mySide ? 'RED' : 'GOLD'} · W / ↑ JUMP` : 'W / ↑ JUMP · S / ↓ DUNK';
   $('name0').textContent = game.names[0]; $('name1').textContent = game.names[1];
-  $('tag0').textContent = mode === 'online' && mySide === 0 ? 'GOLD · YOU' : 'GOLD';
-  $('tag1').textContent = mode === 'online' && mySide === 1 ? 'RED · YOU' : 'RED';
+  $('tag0').textContent = `${teamSize === 1 ? '1V1' : '2V2'}${mode === 'online' && mySide === 0 ? ' · YOU' : ''}`;
+  $('tag1').textContent = `${teamSize === 1 ? '1V1' : '2V2'}${mode === 'online' && mySide === 1 ? ' · YOU' : ''}`;
 }
-function begin(modeKind, seed, names, level = 0) {
-  clearInputs(); mode = modeKind; paused = false; resultKind = 'local';
-  game = new Game(seed, names);
+function begin(modeKind, seed, names, level = 0, size = 2) {
+  clearInputs(); mode = modeKind; paused = false; resultKind = 'local'; teamSize = size === 1 ? 1 : 2;
+  game = new Game(seed, names, teamSize);
   bots = modeKind === 'bot' ? [null, new Bot(1, level, seed ^ 0x51ed270b)] : [];
   capture(game); configureControls(); setScreen('game'); updateHud(); sound.unlock();
 }
-function localStart(kind, level = 1) {
+function localStart(kind, level = 1, size = 2) {
   net.close(); mySide = 0;
   const seed = crypto.getRandomValues(new Uint32Array(1))[0];
-  begin(kind, seed, [nickname, kind === 'bot' ? DIFFICULTIES[level].name : 'PLAYER 2'], level);
+  begin(kind, seed, [nickname, kind === 'bot' ? DIFFICULTIES[level].name : 'PLAYER 2'], level, size);
 }
 function updateHud() {
   if (!game) return;
   $('score').textContent = `${game.scores[0]} : ${game.scores[1]}`;
   $('condition').textContent = game.condition;
+  const ownerSide = game.ball.owner === -1 ? -1 : game.players[game.ball.owner].side;
   for (const button of controlButtons) {
-    const side = Number(button.dataset.side), p = game.players[side];
+    const side = Number(button.dataset.side);
     button.classList.toggle('active', inputs[side][button.dataset.action]);
-    if (button.dataset.action === 'dunk') button.classList.toggle('cooling', p.dunkCD > 0);
+    if (button.dataset.action === 'dunk') button.classList.toggle('cooling', game.players.some(p => p.side === side && p.dunkCD > 0));
     if (button.dataset.action === 'jump') {
-      const held = game.ball.owner === side;
-      const label = held ? 'RELEASE' : side === 0 ? 'W' : '↑';
+      const label = ownerSide === side ? 'RELEASE' : side === 0 ? 'W' : '↑';
       if (button.lastElementChild.textContent !== label) button.lastElementChild.textContent = label;
     }
   }
@@ -118,13 +122,14 @@ function disconnected(title, detail) {
   if (!game) { returnMenu(); toast(detail); return; }
   showResult('disconnect', title, detail);
 }
-function joinQueue() {
+function joinQueue(size = 2) {
   if (native && !endpoint) { openModal('settings-modal'); toast('Add your deployed match server to play online.'); return; }
+  pendingTeamSize = size === 1 ? 1 : 2;
   setScreen('queue'); $('queue-status').textContent = 'CONNECTING';
-  $('queue-detail').textContent = 'Looking for another player in the queue.';
+  $('queue-detail').textContent = `Looking for another ${pendingTeamSize === 1 ? '1V1' : '2V2'} player.`;
   $('queue-server').textContent = endpoint ? new URL(endpoint).host : 'THIS HOST';
   queueSince = performance.now(); queueSecond = -1;
-  net.connect(endpoint, nickname);
+  net.connect(endpoint, nickname, pendingTeamSize);
 }
 const net = new MatchClient({
   status(value) {
@@ -136,7 +141,7 @@ const net = new MatchClient({
     if (![0, 1].includes(message.side) || !Number.isInteger(message.seed)) return;
     mySide = message.side; lastTick = -1; lastFrame = performance.now();
     const opponent = cleanName(message.opponent), names = mySide ? [opponent, nickname] : [nickname, opponent];
-    begin('online', message.seed, names);
+    begin('online', message.seed, names, 0, message.teamSize === 1 ? 1 : 2);
   },
   frame(message) {
     if (mode !== 'online' || !game || screen !== 'game') return;
@@ -168,7 +173,7 @@ for (const button of controlButtons) {
   for (const event of ['pointerup', 'pointercancel', 'lostpointercapture']) button.addEventListener(event, () => setInput(side, action, false));
 }
 function keyboardSide(code) {
-  if (mode === 'local') return ['KeyW', 'KeyS'].includes(code) ? 0 : 1;
+  if (mode === 'local') return ['KeyW', 'KeyS', 'Space'].includes(code) ? 0 : 1;
   return mySide;
 }
 document.addEventListener('keydown', event => {
@@ -185,7 +190,7 @@ document.addEventListener('keydown', event => {
   if (event.code === 'Escape' || event.code === 'KeyP') {
     event.preventDefault();
     if (screen === 'game') paused ? resumeGame() : pauseGame();
-    else if (screen !== 'menu') returnMenu();
+    else if (screen !== 'menu') goBack();
     return;
   }
   const action = ['KeyW', 'ArrowUp', 'Space'].includes(event.code) ? 'jump' : ['KeyS', 'ArrowDown'].includes(event.code) ? 'dunk' : null;
@@ -235,22 +240,33 @@ $('help').onclick = () => openModal('help-modal');
 function updateSound() { $('sound').textContent = `SOUND: ${sound.enabled ? 'ON' : 'OFF'}`; $('sound').setAttribute('aria-pressed', String(sound.enabled)); }
 $('sound').onclick = () => { sound.enabled = !sound.enabled; store.set('sound', sound.enabled ? '1' : '0'); updateSound(); sound.unlock(); sound.click(); };
 for (const button of document.querySelectorAll('[data-mode]')) button.onclick = () => {
-  sound.unlock(); sound.click();
-  if (button.dataset.mode === 'local') localStart('local');
+  sound.unlock(); sound.click(); pendingTeamSize = 2;
+  if (button.dataset.mode === 'local') localStart('local', 1, 2);
   else if (button.dataset.mode === 'bot') setScreen('difficulty');
-  else joinQueue();
+  else joinQueue(2);
 };
-for (const button of document.querySelectorAll('[data-level]')) button.onclick = () => { sound.click(); localStart('bot', Number(button.dataset.level)); };
-document.querySelector('[data-back]').onclick = returnMenu;
+$('one-v-one').onclick = () => { sound.unlock(); sound.click(); pendingTeamSize = 1; setScreen('format'); };
+for (const button of document.querySelectorAll('[data-format]')) button.onclick = () => {
+  sound.click();
+  if (button.dataset.format === 'bot') setScreen('difficulty');
+  else if (button.dataset.format === 'local') localStart('local', 1, 1);
+  else joinQueue(1);
+};
+for (const button of document.querySelectorAll('[data-level]')) button.onclick = () => { sound.click(); localStart('bot', Number(button.dataset.level), pendingTeamSize); };
+function goBack() {
+  if (screen === 'difficulty' && pendingTeamSize === 1) { setScreen('format'); return; }
+  returnMenu();
+}
+for (const button of document.querySelectorAll('[data-back]')) button.onclick = goBack;
 $('cancel-queue').onclick = returnMenu;
 $('pause').onclick = pauseGame;
 $('resume').onclick = resumeGame;
 $('quit').onclick = $('result-menu').onclick = returnMenu;
 $('rematch').onclick = () => {
   sound.click();
-  if (resultKind === 'left') { returnMenu(); joinQueue(); }
+  if (resultKind === 'left') { const size = teamSize; returnMenu(); joinQueue(size); }
   else if (mode === 'online') { net.send({ type: 'rematch' }); $('rematch').textContent = 'WAITING FOR OPPONENT'; $('rematch').disabled = true; }
-  else localStart(mode, bots[1] ? DIFFICULTIES.indexOf(bots[1].config) : 1);
+  else localStart(mode, bots[1] ? DIFFICULTIES.indexOf(bots[1].config) : 1, teamSize);
 };
 document.addEventListener('pointerdown', () => sound.unlock(), { once: true });
 window.__pause = pauseGame;
@@ -258,7 +274,7 @@ window.__back = () => {
   if (activeModal) { closeModal(); return true; }
   if (screen === 'menu') return false;
   if (screen === 'game') { paused ? resumeGame() : pauseGame(); return true; }
-  returnMenu(); return true;
+  goBack(); return true;
 };
 
 let lastPhase = '', lastBounces = 0, lastHudTick = -1;

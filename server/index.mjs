@@ -52,7 +52,7 @@ export function createGameServer({ root = resolve('dist'), tickMs = 50, maxConne
     if ((ipCounts.get(ip) || 0) >= 32) { socket.write('HTTP/1.1 429 Too Many Requests\r\nConnection: close\r\n\r\n'); socket.destroy(); return; }
     ipCounts.set(ip, (ipCounts.get(ip) || 0) + 1);
     wss.handleUpgrade(req, socket, head, ws => {
-      ws.ip = ip; ws.alive = true; ws.name = ''; ws.match = null; ws.joined = false;
+      ws.ip = ip; ws.alive = true; ws.name = ''; ws.match = null; ws.joined = false; ws.teamSize = 2;
       ws.tokens = 80; ws.tokenTime = Date.now();
       ws.on('close', () => {
         const count = (ipCounts.get(ip) || 1) - 1;
@@ -96,11 +96,11 @@ export function createGameServer({ root = resolve('dist'), tickMs = 50, maxConne
   }
   function startMatch(a, b) {
     removeQueue(a); removeQueue(b);
-    const match = { a, b, tick: 0, masks: [0, 0], ready: new Set(), votes: new Set(), results: [null, null], state: 'waiting', interval: null };
+    const match = { a, b, tick: 0, masks: [0, 0], ready: new Set(), votes: new Set(), results: [null, null], state: 'waiting', interval: null, teamSize: a.teamSize };
     a.match = b.match = match; matches.add(match);
     const seed = randomInt(0, 4294967296);
-    send(a, { type: 'start', side: 0, seed, opponent: b.name });
-    send(b, { type: 'start', side: 1, seed, opponent: a.name });
+    send(a, { type: 'start', side: 0, seed, opponent: b.name, teamSize: match.teamSize });
+    send(b, { type: 'start', side: 1, seed, opponent: a.name, teamSize: match.teamSize });
     match.readyTimeout = setTimeout(() => { if (match.state === 'waiting') fail(match, 'Opponent did not finish loading.'); }, 10000);
     match.deadline = setTimeout(() => fail(match, 'Eight-minute match limit reached.'), 480000);
   }
@@ -109,8 +109,15 @@ export function createGameServer({ root = resolve('dist'), tickMs = 50, maxConne
       if (ws.joined) { ws.close(1008, 'Already joined'); return; }
       if (queue.length >= 200) { send(ws, { type: 'error', message: 'Queue is full. Try again shortly.' }); ws.close(1013, 'Queue full'); return; }
       ws.name = cleanName(message.name); ws.joined = true;
-      queue.push(ws); send(ws, { type: 'queued' });
-      while (queue.length >= 2) startMatch(queue[0], queue[1]);
+      ws.teamSize = message.teamSize === 1 ? 1 : 2;
+      queue.push(ws); send(ws, { type: 'queued', teamSize: ws.teamSize });
+      for (;;) {
+        let pair = null;
+        for (let i = 0; i < queue.length && !pair; i++) for (let j = i + 1; j < queue.length; j++)
+          if (queue[i].teamSize === queue[j].teamSize) { pair = [queue[i], queue[j]]; break; }
+        if (!pair) break;
+        startMatch(pair[0], pair[1]);
+      }
       return;
     }
     if (!ws.joined) { ws.close(1008, 'Join first'); return; }

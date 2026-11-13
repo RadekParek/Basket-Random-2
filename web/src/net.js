@@ -1,7 +1,8 @@
 export class MatchClient {
   constructor(handlers) { this.handlers = handlers; this.socket = null; this.timer = 0; this.generation = 0; }
-  connect(endpoint, name) {
+  connect(endpoint, name, teamSize = 2) {
     this.close();
+    this.teamSize = teamSize === 1 ? 1 : 2;
     const generation = this.generation;
     let url;
     try {
@@ -18,7 +19,7 @@ export class MatchClient {
     try { ws = new WebSocket(url); } catch { this.handlers.error('Could not open a connection to that server.'); return; }
     this.socket = ws;
     this.timer = setTimeout(() => { if (ws.readyState !== WebSocket.OPEN) { ws.close(); this.handlers.error('Server did not respond. Check the address and try again.'); } }, 8000);
-    ws.onopen = () => { clearTimeout(this.timer); ws.send(JSON.stringify({ type: 'join', name })); this.handlers.status('IN QUEUE'); };
+    ws.onopen = () => { clearTimeout(this.timer); ws.send(JSON.stringify({ type: 'join', name, teamSize: this.teamSize })); this.handlers.status('IN QUEUE'); };
     ws.onmessage = event => {
       if (generation !== this.generation) return;
       let message;
