@@ -1,0 +1,80 @@
+name: Test and build Android APK
+on:
+  push:
+    branches: [main, 'arena/**']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Browser and touch smoke tests
+        run: CHROME_PATH="$(command -v google-chrome || command -v chromium-browser)" npm run test:browser
+  apk:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Install pinned Android SDK components
+        run: |
+          SDKMANAGER="$(command -v sdkmanager || echo "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager")"
+          yes | "$SDKMANAGER" --licenses >/dev/null
+          "$SDKMANAGER" 'platforms;android-35' 'build-tools;35.0.0'
+      - run: npm ci
+      - run: npm run build
+      - name: Build and verify installable APK
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          VERSION_CODE: ${{ github.run_number }}
+        run: bash android/build.sh
+      - name: Verify APK structure and alignment
+        run: |
+          python3 - <<'PY'
+          import glob, zipfile
+          apk = glob.glob('build/apk/*.apk')[0]
+          with zipfile.ZipFile(apk) as z:
+              names = set(z.namelist())
+              for entry in ('classes.dex', 'AndroidManifest.xml', 'resources.arsc', 'assets/index.html', 'assets/game.js', 'assets/style.css'):
+                  assert entry in names, f'missing {entry}'
+              assert z.getinfo('resources.arsc').compress_type == zipfile.ZIP_STORED, 'resources.arsc must be stored uncompressed'
+              print(apk, len(names), 'entries; resources.arsc stored')
+          PY
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging build/apk/*.apk | grep -E 'package:|launchable-activity:'
+          "$ANDROID_HOME/build-tools/35.0.0/zipalign" -c -v 4 build/apk/*.apk
+      - uses: actions/upload-artifact@v7
+        with:
+          name: BasketRandom-APK
+          path: build/apk/*.apk
+          if-no-files-found: error
+          retention-days: 30
+      - name: Size summary
+        run: |
+          echo '### Android build' >> "$GITHUB_STEP_SUMMARY"
+          ls -lh build/apk/*.apk >> "$GITHUB_STEP_SUMMARY"
+          echo 'Without repository signing secrets this APK uses an ephemeral debug key. It is installable, but not an update-compatible store release.' >> "$GITHUB_STEP_SUMMARY"

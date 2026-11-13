@@ -1,0 +1,10 @@
+node_modules/
+dist/
+build/
+artifacts/
+*.apk
+image-search/
+*.jks
+*.keystore
+.env
+.DS_Store
