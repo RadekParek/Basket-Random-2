@@ -121,6 +121,20 @@ test('jerseys, skin tones, and hair are seeded and reshuffled every round', () =
   assert.ok(a.players.every(p => p.skin >= 0 && p.skin < 6 && p.hair >= 0 && p.hair < 6 && p.kit >= 0 && p.kit < 8));
 });
 
+test('round modifiers reshuffle gravity, moving hoops, and body types', () => {
+  const g = new Game(1);
+  const gravities = new Set(), sways = new Set(), variants = new Set();
+  for (let i = 0; i < 30; i++) {
+    g.resetRound(false);
+    gravities.add(g.gravity); sways.add(g.hoopSway);
+    for (const p of g.players) variants.add(p.variant);
+  }
+  assert.ok(gravities.has(0.78) && gravities.has(1.22));
+  assert.ok(sways.has(6));
+  assert.ok(variants.size >= 5);
+  assert.match(g.condition, /CITY|BEACH|SNOW|GYM/);
+});
+
 test('nicknames are bounded and never interpreted as markup', () => {
   assert.equal(cleanName('  LeBron_23  '), 'LeBron_23');
   assert.equal(cleanName('<script>'), 'script');

@@ -268,6 +268,16 @@ $('rematch').onclick = () => {
   else if (mode === 'online') { net.send({ type: 'rematch' }); $('rematch').textContent = 'WAITING FOR OPPONENT'; $('rematch').disabled = true; }
   else localStart(mode, bots[1] ? DIFFICULTIES.indexOf(bots[1].config) : 1, teamSize);
 };
+$('share').onclick = async () => {
+  sound.click();
+  if (!game) return;
+  const text = `Basket Random: ${game.names[0]} ${game.scores[0]} - ${game.scores[1]} ${game.names[1]}. First to 5. One button. Total chaos.`;
+  try {
+    if (navigator.share) await navigator.share({ title: 'Basket Random', text });
+    else if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); toast('Score copied. Paste it anywhere.'); }
+    else toast(text);
+  } catch {}
+};
 document.addEventListener('pointerdown', () => sound.unlock(), { once: true });
 window.__pause = pauseGame;
 window.__back = () => {
@@ -277,7 +287,7 @@ window.__back = () => {
   goBack(); return true;
 };
 
-let lastPhase = '', lastBounces = 0, lastHudTick = -1;
+let lastPhase = '', lastBounces = 0, lastHudTick = -1, lastShot = null;
 function frame(now) {
   const dt = Math.min((now - lastTime) / 1000, .1); lastTime = now;
   if (screen === 'game' && game && !paused && !document.hidden) {
@@ -293,6 +303,7 @@ function frame(now) {
       if (game.phase === 'over') showResult();
     }
     if (game.phase !== lastPhase) { if (game.phase === 'score') sound.score(); lastPhase = game.phase; }
+    if (game.lastShot !== lastShot) { if (game.lastShot && game.lastShot.dunk) sound.dunk(); lastShot = game.lastShot; }
     if (game.bounces > lastBounces) sound.bounce();
     lastBounces = game.bounces;
     if (game.tick - lastHudTick >= 6) { updateHud(); lastHudTick = game.tick; }

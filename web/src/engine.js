@@ -1,9 +1,15 @@
 import { Random, FP, fix, num, clamp, dist2 } from './math.js';
 import {
-  WIDTH, RIM_Y, HOOPS, COURTS, BALLS, JERSEYS, SKIN_TONES, HAIR_COLORS,
+  WIDTH, RIM_Y, HOOPS, COURTS, BALLS, JERSEYS, SKIN_TONES, HAIR_COLORS, VARIANTS,
   SHOT_CHARGE_TICKS, makePlayer, stepPlayer, collidePlayers, collideBall,
   particle, ballVelocity, setBallPosition
 } from './physics.js';
+
+const GRAVITIES = [
+  { scale: 0.78, name: 'LOW GRAVITY' },
+  { scale: 1, name: '' },
+  { scale: 1.22, name: 'HEAVY GRAVITY' }
+];
 
 export const EMPTY = Object.freeze({ jump: false, dunk: false });
 export const TARGET_SCORE = 5;
@@ -36,13 +42,17 @@ export class Game {
     this.ballType = first ? 0 : this.random.int(BALLS.length);
     const offset = first ? 0 : [-10, 0, 10][this.random.int(3)];
     const width = first ? 28 : [24, 28, 32][this.random.int(3)];
-    this.hoops = HOOPS.map(h => ({ ...h, y: RIM_Y + offset, width, left: h.x - width / 2, right: h.x + width / 2 }));
-    this.hoopLabel = offset < 0 ? 'HIGH HOOP' : offset > 0 ? 'LOW HOOP' : width < 28 ? 'NARROW HOOP' : width > 28 ? 'WIDE HOOP' : 'NORMAL HOOP';
+    this.hoopSway = first ? 0 : this.random.int(4) === 0 ? 6 : 0;
+    this.hoops = HOOPS.map(h => ({ ...h, y: RIM_Y + offset, baseY: RIM_Y + offset, width, left: h.x - width / 2, right: h.x + width / 2 }));
+    this.hoopLabel = this.hoopSway ? 'MOVING HOOP' : offset < 0 ? 'HIGH HOOP' : offset > 0 ? 'LOW HOOP' : width < 28 ? 'NARROW HOOP' : width > 28 ? 'WIDE HOOP' : 'NORMAL HOOP';
+    const gravity = first ? GRAVITIES[1] : GRAVITIES[this.random.int(GRAVITIES.length)];
+    this.gravity = gravity.scale;
+    this.roundLabel = gravity.name || this.hoopLabel;
     const kit0 = this.random.int(JERSEYS.length);
     const kit1 = (kit0 + 1 + this.random.int(JERSEYS.length - 1)) % JERSEYS.length;
     this.players = [];
     for (const side of [0, 1]) for (let slot = 0; slot < this.teamSize; slot++) {
-      this.players.push(makePlayer(side, this.random.int(4), slot, {
+      this.players.push(makePlayer(side, this.random.int(VARIANTS.length), slot, {
         skin: this.random.int(SKIN_TONES.length),
         hair: this.random.int(HAIR_COLORS.length),
         kit: side ? kit1 : kit0
@@ -64,7 +74,14 @@ export class Game {
   }
 
   get condition() {
-    return `${COURTS[this.court].name} · ${BALLS[this.ballType].name}`;
+    const gravity = GRAVITIES.find(g => g.scale === this.gravity);
+    return `${COURTS[this.court].name} · ${BALLS[this.ballType].name}${gravity && gravity.name ? ' · ' + gravity.name : ''}`;
+  }
+
+  moveHoops() {
+    if (!this.hoopSway) return;
+    const y = Math.round(Math.sin(this.tick / 28) * this.hoopSway);
+    for (const h of this.hoops) h.y = h.baseY + y;
   }
 
   release(index, dunk = false) {
@@ -79,7 +96,7 @@ export class Game {
     b.lastPower = power;
     b.ignore = index;
     b.ignoreTicks = 10;
-    this.pickupCD = dunk ? 35 : 15;
+    this.pickupCD = dunk ? 35 : 12;
     p.charge = 0;
     p.lastShotPower = power;
     if (dunk && Math.abs(x - target.x) < 30 && y < target.y + 2 && y > target.y - 40) {
@@ -91,14 +108,14 @@ export class Game {
       return;
     }
     const distance = target.x - x;
-    const loft = 70 + Math.abs(distance) * 0.4 + (1 - power) * 16;
-    let dx = distance + hv.x * 0.1 + bv.x * 0.08;
-    let dy = target.y - y - loft + hv.y * 0.1;
-    if (dunk) { dx += p.d * 28; dy += 42; }
+    const loft = dunk ? 46 : 62 + Math.abs(distance) * 0.34 + (1 - power) * 14;
+    let dx = distance + hv.x * 0.08 + bv.x * 0.06;
+    let dy = target.y - y - loft + hv.y * 0.08;
+    if (dunk) dx += p.d * 18;
     const length = Math.sqrt(dx * dx + dy * dy) || 1;
-    const speed = 260 + 280 * power;
-    const vx = clamp(speed * dx / length, -540, 540);
-    const vy = clamp(speed * dy / length, -580, 180);
+    const speed = dunk ? 250 + 170 * power : 230 + 210 * power;
+    const vx = clamp(speed * dx / length, -380, 380);
+    const vy = clamp(speed * dy / length, -420, 160);
     setBallPosition(b, x, y, vx, vy);
     this.lastShot = { side, power, dunk, speed: Math.hypot(vx, vy) };
     p.dunkTime = 0;
@@ -125,7 +142,7 @@ export class Game {
     if (this.pickupCD > 0) return;
     let best = -1, bestDistance = Infinity;
     for (let index = 0; index < this.players.length; index++) {
-      const p = this.players[index], reach = fix(BALLS[this.ballType].radius + 9) ** 2;
+      const p = this.players[index], reach = fix(BALLS[this.ballType].radius + 12) ** 2;
       for (const i of [4, 6]) {
         const d = handDistance(p, b, i);
         if (d < reach && d < bestDistance) { best = index; bestDistance = d; }
@@ -151,6 +168,7 @@ export class Game {
     if (this.stealCD > 0) this.stealCD--;
     if (this.phase === 'over') return;
     if (this.phase === 'countdown') {
+      this.moveHoops();
       if (--this.timer <= 0) this.phase = 'play';
       return;
     }
@@ -164,10 +182,11 @@ export class Game {
       return;
     }
     const b = this.ball, oldY = b.y;
+    this.moveHoops();
     for (let index = 0; index < this.players.length; index++) {
       const p = this.players[index], input = inputs[p.side] || EMPTY, held = b.owner === index;
       const moveDir = b.owner === -1 && Math.abs(b.x - p.pts[0].x) > fix(14) ? Math.sign(b.x - p.pts[0].x) : p.d;
-      stepPlayer(p, input, this.court, held, this.tick, moveDir, this.hoops);
+      stepPlayer(p, input, this.court, held, this.tick, moveDir, this.hoops, this.gravity);
       if (held && input.jump) p.charge = Math.min(p.charge + 1, SHOT_CHARGE_TICKS);
     }
     for (let i = 0; i < this.players.length; i++) for (let j = i + 1; j < this.players.length; j++) collidePlayers(this.players[i], this.players[j]);
@@ -188,7 +207,7 @@ export class Game {
     if (b.owner === -1) {
       if (b.ignoreTicks > 0) b.ignoreTicks--;
       const colliders = b.ignoreTicks > 0 ? this.players.filter((_, i) => i !== b.ignore) : this.players;
-      collideBall(b, BALLS[this.ballType], this.court, colliders, () => this.bounces++, this.hoops);
+      collideBall(b, BALLS[this.ballType], this.court, colliders, () => this.bounces++, this.hoops, this.gravity);
       b.spin += (b.x - b.px) / 12;
       this.staleTicks = Math.abs(b.x - b.px) + Math.abs(b.y - b.py) < fix(0.35) ? this.staleTicks + 1 : 0;
       if (this.staleTicks > 120) { ballVelocity(b, b.x < fix(WIDTH / 2) ? 50 : -50, -80); this.staleTicks = 0; }
@@ -210,6 +229,7 @@ export class Game {
       tick: this.tick, seed: this.seed, rng: this.random.state, scores: [...this.scores],
       round: this.round, phase: this.phase, timer: this.timer, court: this.court,
       ballType: this.ballType, teamSize: this.teamSize, winner: this.winner, hoops: this.hoops,
+      gravity: this.gravity, hoopSway: this.hoopSway, roundLabel: this.roundLabel,
       hoopLabel: this.hoopLabel, bounces: this.bounces, pickupCD: this.pickupCD, stealCD: this.stealCD,
       staleTicks: this.staleTicks, deadTicks: this.deadTicks, lastScorer: this.lastScorer, lastShot: this.lastShot,
       ball: [this.ball.x, this.ball.y, this.ball.px, this.ball.py, this.ball.owner, this.ball.holdTicks, this.ball.ignore, this.ball.ignoreTicks],

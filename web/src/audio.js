@@ -23,5 +23,6 @@ export class Sound {
     if (now - this.lastBounce < 90) return;
     this.lastBounce = now; this.tone(105, .045, 'triangle', .06);
   }
-  score() { this.tone(523, .1); this.tone(659, .1, 'square', .035, .09); this.tone(784, .18, 'square', .035, .18); }
+  score() { this.tone(523, .1); this.tone(659, .1, 'square', .035, .09); this.tone(784, .18, 'square', .035, .18); this.tone(1046, .22, 'triangle', .03, .27); }
+  dunk() { this.tone(196, .08, 'sawtooth', .05); this.tone(98, .16, 'triangle', .06, .06); }
 }
