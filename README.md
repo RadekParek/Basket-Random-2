@@ -83,7 +83,7 @@ The shell loads bundled assets from a local `https://appassets.androidplatform.n
 
 ## Size and performance
 
-The renderer uses a fixed **480 × 270** canvas, nearest-neighbor scaling, cached court backgrounds, and no image/font downloads. Physics runs at a fixed 60 Hz with bounded catch-up; rendering interpolates independently. Audio is synthesized after a user gesture. The production web payload is roughly **56 KB raw / 21 KB gzip**; `build.mjs` enforces a 160 KB raw ceiling. The APK has a 256 KiB CI ceiling. Actual APK size is printed in the workflow summary.
+The renderer uses a fixed **480 × 270** canvas, nearest-neighbor scaling, cached court backgrounds, and no image/font downloads. Physics runs at a fixed 60 Hz with bounded catch-up; rendering interpolates independently. Audio is synthesized after a user gesture. The production web payload is roughly **58 KB raw / 22 KB gzip**; `build.mjs` enforces a 160 KB raw ceiling. The APK has a 256 KiB CI ceiling. Actual APK size is printed in the workflow summary.
 
 These are size and implementation budgets, not a claim of measured 60 FPS on every phone. WebView/device performance varies.
 

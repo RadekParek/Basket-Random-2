@@ -220,6 +220,7 @@ function shadow(ctx, x, width, alpha = .18) {
 const SILVER = ['#ffffff','#eef2f6','#d3dbe4','#b4c0cd','#93a1b1','#758396','#5b687b'];
 const GOLD = ['#fff4b8','#ffe47e','#f6ca48','#e6ad30','#cf9023','#b5761c','#966018'];
 const BLUE = ['#e8fbff','#a9ecff','#64d4f7','#35b9e8','#219aca','#187cab','#12618d'];
+const FIRE = ['#fff4b8','#ffd779','#ffb13b','#f2802e','#e0512b','#c23a24','#962b1e'];
 export class Renderer {
   constructor(canvas) {
     this.canvas = canvas; this.ctx = canvas.getContext('2d', { alpha: false });
@@ -262,8 +263,10 @@ export class Renderer {
     if (game.ball.owner === -1) {
       const vx = num(game.ball.x - game.ball.px), vy = num(game.ball.y - game.ball.py);
       if (Math.abs(vx) + Math.abs(vy) > 2) {
-        ctx.globalAlpha = .35;
-        line(ctx, bx - vx * 5, by - vy * 5, bx - vx * 1.5, by - vy * 1.5, 3, '#ffffff');
+        ctx.globalAlpha = .3;
+        line(ctx, bx - vx * 8, by - vy * 8, bx - vx * 2, by - vy * 2, 4, '#ffffff');
+        ctx.globalAlpha = .5;
+        line(ctx, bx - vx * 4, by - vy * 4, bx - vx, by - vy, 3, '#ffffff');
         ctx.globalAlpha = 1;
       }
     }
@@ -277,10 +280,10 @@ export class Renderer {
       rect(ctx, power >= 1 ? '#ffffff' : '#f4c644', x-12, y+2, Math.round(24*power), 1);
     }
     if (game.phase === 'countdown') {
-      text(ctx, game.round === 1 ? 'READY' : game.hoopLabel, 240, 84, 2, '#fff', 'center', true);
+      text(ctx, game.round === 1 ? 'READY' : game.roundLabel || game.hoopLabel, 240, 84, 2, '#fff', 'center', true);
       text(ctx, Math.max(1, Math.ceil(game.timer/30)), 240, 106, 5, '#f4c644', 'center', true);
     } else if (game.phase === 'score') {
-      bevelText(ctx, 'BASKET!', 240, 44, 5, game.lastScorer ? BLUE : GOLD);
+      bevelText(ctx, 'BASKET!', 240, 44, 5, FIRE);
       text(ctx, game.ballType === 3 ? '+2' : '+1', 240, 88, 2, '#fff', 'center', true);
     }
   }

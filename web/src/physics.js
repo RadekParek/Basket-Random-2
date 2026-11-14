@@ -20,7 +20,7 @@ export const BALLS = [
   { name: 'LIGHT BALL', radius: 6, gravity: 620, bounce: 1.16 },
   { name: 'COLORFUL BALL · 2 PTS', radius: 7, gravity: 700, bounce: 1 }
 ];
-export const VARIANTS = ['NORMAL', 'LONG ARMS', 'BIG HEAD', 'SHORT ARMS'];
+export const VARIANTS = ['NORMAL', 'LONG ARMS', 'BIG HEAD', 'SHORT ARMS', 'TALL', 'SHORT'];
 export const SKIN_TONES = ['#f0c8a0', '#dba87e', '#bb8058', '#9c684c', '#7a4b35', '#5c3826'];
 export const HAIR_COLORS = ['#25252b', '#34302b', '#583b2c', '#8a5a30', '#d4ae48', '#b9b9bd'];
 export const JERSEYS = [
@@ -52,18 +52,21 @@ function move(p, x, y) { p.x += x; p.y += y; p.px += x; p.py += y; }
 export function makePlayer(side, variant = 0, slot = 0, look = {}, teamSize = 2) {
   const x = teamSize === 1 ? (side ? 306 : 174) : side ? (slot ? 306 : 354) : (slot ? 174 : 126);
   const d = side ? -1 : 1;
-  const leg = 12, arm = variant === 1 ? 15 : variant === 3 ? 8 : 11;
+  const leg = variant === 4 ? 15 : variant === 5 ? 9 : 12;
+  const arm = variant === 1 ? 15 : variant === 3 ? 8 : 11;
+  const torso1 = variant === 4 ? 22 : variant === 5 ? 14 : 18;
+  const torso2 = variant === 4 ? 38 : variant === 5 ? 26 : 32;
   const hip = FLOOR - leg * 2 - 2;
   const pts = [
-    [x, hip], [x, hip - 18], [x, hip - 32],
-    [x - 4, hip - 18 + arm], [x - 5, hip - 18 + arm * 2],
-    [x + 4, hip - 18 + arm], [x + 5, hip - 18 + arm * 2],
+    [x, hip], [x, hip - torso1], [x, hip - torso2],
+    [x - 4, hip - torso1 + arm], [x - 5, hip - torso1 + arm * 2],
+    [x + 4, hip - torso1 + arm], [x + 5, hip - torso1 + arm * 2],
     [x - 2, hip + leg], [x - 4, hip + leg * 2],
     [x + 2, hip + leg], [x + 4, hip + leg * 2]
   ].map(([a, b], i) => particle(a, b, i === 2 ? (variant === 2 ? 8 : 6) : RADII[i], 1));
   const links = [[1, 3], [3, 4], [1, 5], [5, 6]].map(([a, b]) => ({ a, b, len: fix(arm) }));
   return {
-    side, d, variant, slot, pts, links, leg, arm,
+    side, d, variant, slot, pts, links, leg, arm, torso1, torso2,
     skin: look.skin || 0, hair: look.hair || 0, kit: look.kit || 0, number: slot + 1,
     angle: 0, av: 0, legAngle: 0, legV: 0, swing: 0, swingV: 0,
     jumpCD: 0, jumpCount: 0, coyote: 0, dunkCD: 0, dunkTime: 0, charge: 0,
@@ -83,7 +86,7 @@ function rotate(x, y, s, c) { return [mul(x, c) - mul(y, s), mul(x, s) + mul(y, 
 function placeCore(p) {
   const hip = p.pts[0], leg = p.leg;
   const ts = sin(p.angle), tc = cos(p.angle), ls = sin(p.legAngle), lc = cos(p.legAngle);
-  const torso = [[1, 0, -18], [2, 0, -32]];
+  const torso = [[1, 0, -p.torso1], [2, 0, -p.torso2]];
   for (const [id, ox, oy] of torso) {
     const [x, y] = rotate(fix(ox), fix(oy), ts, tc);
     p.pts[id].x = hip.x + x; p.pts[id].y = hip.y + y;
@@ -157,7 +160,7 @@ function groundPlayer(p, friction) {
   return contact;
 }
 
-export function stepPlayer(p, input, court, holding, tick, moveDir = p.d, hoops = HOOPS) {
+export function stepPlayer(p, input, court, holding, tick, moveDir = p.d, hoops = HOOPS, gravity = 1) {
   if (p.jumpCD > 0) p.jumpCD--;
   if (p.dunkCD > 0) p.dunkCD--;
   if (p.coyote > 0) p.coyote--;
@@ -176,7 +179,7 @@ export function stepPlayer(p, input, court, holding, tick, moveDir = p.d, hoops 
       p.dunkTime = 40;
       const seconds = 0.65;
       const vx = clamp((h.x - p.d * 12 - num(hip.x)) / seconds, -260, 260) / 60;
-      const vy = clamp((h.y + 24 - num(hip.y) - 0.5 * 700 * seconds * seconds) / seconds, -410, -260) / 60;
+      const vy = clamp((h.y + 24 - num(hip.y) - 0.5 * 700 * gravity * seconds * seconds) / seconds, -410, -260) / 60;
       impulsePlayer(p, vx, vy);
       p.av = fix(direction * 0.02); p.legV = fix(direction * 0.01);
     } else {
@@ -187,24 +190,24 @@ export function stepPlayer(p, input, court, holding, tick, moveDir = p.d, hoops 
     p.grounded = false; p.coyote = 0;
   } else if (press && p.jumpCD === 0) {
     if (p.grounded || p.coyote > 0) {
-      const vx = clamp(direction * (1.45 + Math.abs(num(sin(p.angle))) * 2 + Math.abs(num(sin(p.legAngle))) * 0.8), -3.4, 3.4);
+      const vx = clamp(direction * (1.35 + Math.abs(num(sin(p.angle))) * 2.6 + Math.abs(num(sin(p.legAngle))) * 0.9), -3.6, 3.6);
       impulsePlayer(p, vx, -5.6);
-      p.av = fix(direction * (0.045 + Math.abs(num(sin(fix(tick * 0.13)))) * 0.015)) + mul(p.av, fix(0.3));
-      p.legV += fix(direction * 0.012);
+      p.av = fix(direction * (0.07 + Math.abs(num(sin(fix(tick * 0.13)))) * 0.02)) + mul(p.av, fix(0.3));
+      p.legV += fix(direction * 0.016);
       p.jumpCD = 12; p.jumpCount++; p.grounded = false; p.coyote = 0;
     } else {
-      p.av += fix(direction * 0.018); p.jumpCD = 10;
+      p.av += fix(direction * 0.032); p.jumpCD = 10;
     }
   }
   const active = jump || holding || dunk || p.dunkTime > 0;
   p.swingV += mul((active ? FP : 0) - p.swing, fix(0.12));
   p.swingV = mul(p.swingV, fix(0.72));
   p.swing = clamp(p.swing + p.swingV, 0, FP);
-  const sway = num(sin(fix((p.side ? 1.7 : 0) + p.slot * 0.9 + tick / 60 * 2.2))) * 0.12;
-  const target = p.grounded ? sway + (jump ? direction * 0.08 : 0) : p.dunkTime > 0 && holding ? direction * 0.25 : 0;
-  p.av += mul(fix(target) - p.angle, fix(p.grounded ? 0.045 : 0.0015));
-  if (!p.grounded) p.av += mul(sin(p.angle), fix(0.0025));
-  p.av = mul(p.av, fix(p.grounded ? 0.78 : 0.994));
+  const sway = num(sin(fix((p.side ? 1.7 : 0) + p.slot * 0.9 + tick / 60 * 2.2))) * 0.22;
+  const target = p.grounded ? sway + (jump ? direction * 0.14 : 0) : p.dunkTime > 0 && holding ? direction * 0.3 : 0;
+  p.av += mul(fix(target) - p.angle, fix(p.grounded ? 0.05 : 0.002));
+  if (!p.grounded) p.av += mul(sin(p.angle), fix(0.004));
+  p.av = mul(p.av, fix(p.grounded ? 0.78 : 0.996));
   p.angle += p.av;
   if (p.angle > fix(Math.PI)) p.angle -= fix(Math.PI * 2);
   if (p.angle < -fix(Math.PI)) p.angle += fix(Math.PI * 2);
@@ -212,8 +215,8 @@ export function stepPlayer(p, input, court, holding, tick, moveDir = p.d, hoops 
   p.legV += mul(legTarget - p.legAngle, fix(p.grounded ? 0.06 : 0.015));
   p.legV = mul(p.legV, fix(p.grounded ? 0.72 : 0.97));
   p.legAngle = clamp(p.legAngle + p.legV, -fix(1.35), fix(1.35));
-  integrate(hip, gStep(700), fix(0.999));
-  for (const i of [3, 4, 5, 6]) integrate(p.pts[i], gStep(520), fix(0.992));
+  integrate(hip, gStep(700 * gravity), fix(0.999));
+  for (const i of [3, 4, 5, 6]) integrate(p.pts[i], gStep(520 * gravity), fix(0.992));
   placeCore(p); poseArms(p, active); placeCore(p);
   p.grounded = groundPlayer(p, fix(COURTS[court].friction));
   if (p.grounded) p.coyote = 5;
@@ -249,11 +252,11 @@ function reflect(ball, nx, ny, restitution, surfaceVX = 0, surfaceVY = 0) {
   return true;
 }
 
-export function collideBall(ball, spec, court, players, onBounce, hoops = HOOPS) {
-  const r = fix(spec.radius), gravity = gStep(spec.gravity);
+export function collideBall(ball, spec, court, players, onBounce, hoops = HOOPS, gravityScale = 1) {
+  const r = fix(spec.radius), gravity = gStep(spec.gravity * gravityScale);
   integrate(ball, gravity, fix(0.999));
   let vx = ball.x - ball.px, vy = ball.y - ball.py;
-  const max = fix(650 / 60);
+  const max = fix(520 / 60);
   vx = clamp(vx, -max, max); vy = clamp(vy, -max, max);
   ball.px = ball.x - vx; ball.py = ball.y - vy;
   if (ball.y > fix(FLOOR) - r) {

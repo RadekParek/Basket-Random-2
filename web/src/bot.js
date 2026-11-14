@@ -4,8 +4,8 @@ import { FLOOR, SHOT_CHARGE_TICKS } from './physics.js';
 export const DIFFICULTIES = [
   { id: 'noob', name: 'NOOB', reaction: 26, hold: 18, chance: 0.7, dunk: 0.04, range: 120, dunkRange: 62 },
   { id: 'casual', name: 'CASUAL', reaction: 15, hold: 19, chance: 0.82, dunk: 0.16, range: 150, dunkRange: 82 },
-  { id: 'pro', name: 'PRO', reaction: 8, hold: 20, chance: 0.95, dunk: 0.32, range: 185, dunkRange: 104 },
-  { id: 'lebron', name: 'LEBRON JAMES', reaction: 3, hold: 20, chance: 0.99, dunk: 0.52, range: 230, dunkRange: 122 }
+  { id: 'pro', name: 'PRO', reaction: 8, hold: 20, chance: 0.98, dunk: 0.18, range: 200, dunkRange: 96 },
+  { id: 'lebron', name: 'LEBRON JAMES', reaction: 3, hold: 20, chance: 1, dunk: 0.28, range: 240, dunkRange: 110 }
 ];
 
 export class Bot {
@@ -18,6 +18,7 @@ export class Bot {
     this.wait = 0;
     this.lockedCarrier = null;
     this.lockedHold = 0;
+    this.pulse = 0;
   }
 
   input(game) {
@@ -33,7 +34,8 @@ export class Bot {
       this.lockedCarrier = carrier;
       if (carrier) {
         const slotBias = game.teamSize === 2 && carrier.slot === 0 ? 6 : 2;
-        this.lockedHold = clamp(Math.round(Math.abs(game.hoops[carrier.target].x - x) / 14) + slotBias + this.config.hold - SHOT_CHARGE_TICKS, 16, 28);
+        const gravityBias = game.gravity > 1 ? 3 : game.gravity < 1 ? -2 : 0;
+        this.lockedHold = clamp(Math.round(Math.abs(game.hoops[carrier.target].x - x) / 16) + slotBias + gravityBias + this.config.hold - SHOT_CHARGE_TICKS + 3, 18, 26);
       }
     }
     const shotHold = this.lockedHold;
@@ -59,6 +61,9 @@ export class Bot {
       this.jump = (stranded || (ownHalf && Math.abs(predicted - x) < c.range && by < FLOOR - 8)) && roll < c.chance;
       if (c.id === 'noob' && this.random.unit() < 0.15) this.jump = true;
     }
+    if (!carrier && this.jump) {
+      if (++this.pulse > 5) { this.jump = false; this.pulse = 0; }
+    } else this.pulse = 0;
     return { jump: this.jump, dunk: this.dunk };
   }
 }
