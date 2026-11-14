@@ -35,7 +35,7 @@ export class Bot {
       if (carrier) {
         const slotBias = game.teamSize === 2 && carrier.slot === 0 ? 6 : 2;
         const gravityBias = game.gravity > 1 ? 3 : game.gravity < 1 ? -2 : 0;
-        this.lockedHold = clamp(Math.round(Math.abs(game.hoops[carrier.target].x - x) / 16) + slotBias + gravityBias + this.config.hold - SHOT_CHARGE_TICKS + 3, 18, 26);
+        this.lockedHold = clamp(Math.round(Math.abs(game.hoops[carrier.target].x - x) / 13) + slotBias + gravityBias + this.config.hold - SHOT_CHARGE_TICKS + 5, 18, 24);
       }
     }
     const shotHold = this.lockedHold;

@@ -225,6 +225,36 @@ export class Renderer {
   constructor(canvas) {
     this.canvas = canvas; this.ctx = canvas.getContext('2d', { alpha: false });
     this.ctx.imageSmoothingEnabled = false; this.backgrounds = new Map();
+    this.particles = []; this.shake = 0; this.lastParticleTime = 0;
+  }
+  burst(x, y, colors, count = 30, power = 3) {
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * Math.PI * 2, s = (0.4 + Math.random()) * power;
+      this.particles.push({
+        x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 1.2,
+        life: 1, decay: 0.008 + Math.random() * 0.012,
+        color: colors[(Math.random() * colors.length) | 0], size: 2 + ((Math.random() * 3) | 0)
+      });
+    }
+    if (this.particles.length > 320) this.particles.splice(0, this.particles.length - 320);
+  }
+  addShake(amount) { this.shake = Math.min(this.shake + amount, 7); }
+  updateParticles(now) {
+    const dt = this.lastParticleTime ? Math.min((now - this.lastParticleTime) / 16.7, 3) : 1;
+    this.lastParticleTime = now;
+    for (let i = this.particles.length - 1; i >= 0; i--) {
+      const p = this.particles[i];
+      p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 0.12 * dt;
+      p.life -= p.decay * dt;
+      if (p.life <= 0) this.particles.splice(i, 1);
+    }
+  }
+  drawParticles(ctx) {
+    for (const p of this.particles) {
+      ctx.globalAlpha = Math.max(0, p.life);
+      rect(ctx, p.color, p.x, p.y, p.size, p.size);
+    }
+    ctx.globalAlpha = 1;
   }
   bg(court) {
     if (!this.backgrounds.has(court)) this.backgrounds.set(court, background(court));
@@ -232,7 +262,15 @@ export class Renderer {
   }
   draw(game, prev, alpha = 1, menu = false) {
     const ctx = this.ctx;
-    ctx.drawImage(this.bg(menu ? 0 : game.court), 0, 0);
+    let sx = 0, sy = 0;
+    if (!menu && this.shake > 0.3) {
+      sx = Math.round((Math.random() - 0.5) * this.shake);
+      sy = Math.round((Math.random() - 0.5) * this.shake);
+      this.shake *= 0.88;
+    }
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.drawImage(this.bg(menu ? 0 : game.court), -6, -6, 492, 282);
     const hoops = menu ? HOOPS : game.hoops;
     const sway = game.phase === 'score' ? Math.round(Math.sin(game.timer*.22)*3) : 0;
     for (const h of hoops) hoop(ctx, h, sway);
@@ -247,6 +285,7 @@ export class Renderer {
         shadow(ctx, flat[0], 23); player(ctx, p, flat);
       }
       ball(ctx, 240, 177 + Math.sin(performance.now()/430)*5, 0);
+      ctx.restore();
       return;
     }
     const points = game.players.map((p, pi) => {
@@ -286,6 +325,9 @@ export class Renderer {
       bevelText(ctx, 'BASKET!', 240, 44, 5, FIRE);
       text(ctx, game.ballType === 3 ? '+2' : '+1', 240, 88, 2, '#fff', 'center', true);
     }
+    ctx.restore();
+    this.updateParticles(performance.now());
+    this.drawParticles(ctx);
   }
 }
 

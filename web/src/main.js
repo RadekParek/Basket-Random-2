@@ -1,7 +1,7 @@
 import { Game, EMPTY } from './engine.js';
 import { Bot, DIFFICULTIES } from './bot.js';
 import { Renderer, paintIcons } from './render.js';
-import { Sound } from './audio.js';
+import { Sound, Music } from './audio.js';
 import { MatchClient, normalizeEndpoint } from './net.js';
 import { cleanName, num, clamp } from './math.js';
 import { STEP, shiftPlayer } from './physics.js';
@@ -23,6 +23,12 @@ shiftPlayer(demo.players[0], -62, 0); shiftPlayer(demo.players[1], -71, 0);
 shiftPlayer(demo.players[2], 71, 0); shiftPlayer(demo.players[3], 62, 0);
 const renderer = new Renderer($('court'));
 const sound = new Sound(store.get('sound', '1') === '1');
+const music = new Music(sound);
+let musicOn = store.get('music', '1') === '1';
+function playMusic(track) {
+  if (!musicOn || !sound.context) return;
+  music.play(track);
+}
 const inputs = [{ jump: false, dunk: false }, { jump: false, dunk: false }];
 const previous = new Float64Array(90);
 const controlButtons = [...document.querySelectorAll('.control')];
@@ -61,7 +67,7 @@ function setScreen(next) {
 function returnMenu() {
   net.close(); clearInputs(); paused = false; mode = null; game = null;
   $('menu-name').textContent = nickname;
-  setScreen('menu');
+  setScreen('menu'); playMusic('menu');
 }
 function configureControls() {
   const local = mode === 'local';
@@ -76,7 +82,7 @@ function begin(modeKind, seed, names, level = 0, size = 2) {
   clearInputs(); mode = modeKind; paused = false; resultKind = 'local'; teamSize = size === 1 ? 1 : 2;
   game = new Game(seed, names, teamSize);
   bots = modeKind === 'bot' ? [null, new Bot(1, level, seed ^ 0x51ed270b)] : [];
-  capture(game); configureControls(); setScreen('game'); updateHud(); sound.unlock();
+  capture(game); configureControls(); setScreen('game'); updateHud(); sound.unlock(); playMusic('game');
 }
 function localStart(kind, level = 1, size = 2) {
   net.close(); mySide = 0;
@@ -106,7 +112,7 @@ function pauseGame() {
 }
 function resumeGame() { paused = false; $('pause-panel').hidden = true; accumulator = 0; sound.unlock(); }
 function showResult(kind = 'local', title = '', detail = '') {
-  clearInputs(); resultKind = kind; setScreen('result'); paused = false;
+  clearInputs(); resultKind = kind; setScreen('result'); paused = false; playMusic('menu');
   $('result-eyebrow').textContent = kind === 'local' ? 'FINAL SCORE' : 'MATCH ENDED';
   $('result-title').textContent = title || `${game.names[game.winner]} WINS`;
   $('result-score').textContent = `${game.scores[0]} : ${game.scores[1]}`;
@@ -238,7 +244,9 @@ $('settings-form').onsubmit = event => {
 };
 $('help').onclick = () => openModal('help-modal');
 function updateSound() { $('sound').textContent = `SOUND: ${sound.enabled ? 'ON' : 'OFF'}`; $('sound').setAttribute('aria-pressed', String(sound.enabled)); }
-$('sound').onclick = () => { sound.enabled = !sound.enabled; store.set('sound', sound.enabled ? '1' : '0'); updateSound(); sound.unlock(); sound.click(); };
+$('sound').onclick = () => { sound.enabled = !sound.enabled; store.set('sound', sound.enabled ? '1' : '0'); updateSound(); sound.unlock(); sound.click(); if (!sound.enabled) music.stop(); else playMusic(screen === 'game' ? 'game' : 'menu'); };
+function updateMusic() { $('music').textContent = `MUSIC: ${musicOn ? 'ON' : 'OFF'}`; $('music').setAttribute('aria-pressed', String(musicOn)); }
+$('music').onclick = () => { musicOn = !musicOn; store.set('music', musicOn ? '1' : '0'); updateMusic(); sound.unlock(); if (musicOn) playMusic(screen === 'game' ? 'game' : 'menu'); else music.stop(); };
 for (const button of document.querySelectorAll('[data-mode]')) button.onclick = () => {
   sound.unlock(); sound.click(); pendingTeamSize = 2;
   if (button.dataset.mode === 'local') localStart('local', 1, 2);
@@ -278,7 +286,7 @@ $('share').onclick = async () => {
     else toast(text);
   } catch {}
 };
-document.addEventListener('pointerdown', () => sound.unlock(), { once: true });
+document.addEventListener('pointerdown', () => { sound.unlock(); playMusic(screen === 'game' ? 'game' : 'menu'); }, { once: true });
 window.__pause = pauseGame;
 window.__back = () => {
   if (activeModal) { closeModal(); return true; }
@@ -302,8 +310,23 @@ function frame(now) {
       }
       if (game.phase === 'over') showResult();
     }
-    if (game.phase !== lastPhase) { if (game.phase === 'score') sound.score(); lastPhase = game.phase; }
-    if (game.lastShot !== lastShot) { if (game.lastShot && game.lastShot.dunk) sound.dunk(); lastShot = game.lastShot; }
+    if (game.phase !== lastPhase) {
+      if (game.phase === 'score') {
+        sound.score(); sound.cheer();
+        const hoop = game.hoops[1 - game.lastScorer];
+        renderer.burst(hoop.x, hoop.y, ['#f4c644', '#ef7663', '#68cae5', '#ffffff', '#8bc66b'], 42, 3.4);
+        renderer.addShake(3);
+      }
+      lastPhase = game.phase;
+    }
+    if (game.lastShot !== lastShot) {
+      if (game.lastShot && game.lastShot.dunk) {
+        sound.dunk(); renderer.addShake(2.5);
+        const hoop = game.hoops[game.lastShot.side ? 0 : 1];
+        renderer.burst(hoop.x, hoop.y, ['#f4c644', '#ffffff'], 18, 2.4);
+      }
+      lastShot = game.lastShot;
+    }
     if (game.bounces > lastBounces) sound.bounce();
     lastBounces = game.bounces;
     if (game.tick - lastHudTick >= 6) { updateHud(); lastHudTick = game.tick; }
@@ -318,4 +341,4 @@ function frame(now) {
   }
   requestAnimationFrame(frame);
 }
-$('menu-name').textContent = nickname; updateSound(); paintIcons(); capture(demo); setScreen('menu'); requestAnimationFrame(frame);
+$('menu-name').textContent = nickname; updateSound(); updateMusic(); paintIcons(); capture(demo); setScreen('menu'); requestAnimationFrame(frame);
