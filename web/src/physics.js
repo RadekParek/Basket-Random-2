@@ -128,9 +128,14 @@ function poseArms(p, active) {
   const ox = mul(mul(sx, fix(Math.floor(reach * 0.78))), fix(-d)), oy = mul(cy, fix(Math.floor(reach * 0.78)));
   targets[otherElbow] = rotate(mul(ox, fix(0.5)) - bend, mul(oy, fix(0.5)) + bend, s, c);
   targets[other] = rotate(ox, oy, s, c);
+  if (p.dunkTime > 0) {
+    // Dunk: pin the lead hand up toward the rim so the ball rides over the hoop.
+    targets[lead] = [fix(d * 3), fix(-20)];
+    targets[elbow] = [fix(d * 2), fix(-9)];
+  }
   for (const i of [3, 4, 5, 6]) {
     const q = p.pts[i], t = targets[i];
-    const strength = fix(active ? (i === lead ? 0.2 : 0.12) : 0.035);
+    const strength = fix(active ? (i === lead ? (p.dunkTime > 0 ? 0.85 : 0.2) : 0.12) : 0.035);
     q.x += mul(chest.x + t[0] - q.x, strength);
     q.y += mul(chest.y + t[1] - q.y, strength);
   }
@@ -175,13 +180,15 @@ export function stepPlayer(p, input, court, holding, tick, moveDir = p.d, hoops 
   } else if (dunkPress && p.dunkCD === 0) {
     p.dunkCD = DUNK_COOLDOWN;
     const h = hoops[p.target], distance = Math.abs(h.x - num(hip.x));
-    if (holding && distance < 170 && (p.grounded || p.coyote > 0)) {
-      p.dunkTime = 40;
-      const seconds = 0.65;
-      const vx = clamp((h.x - p.d * 12 - num(hip.x)) / seconds, -260, 260) / 60;
-      const vy = clamp((h.y + 24 - num(hip.y) - 0.5 * 700 * gravity * seconds * seconds) / seconds, -410, -260) / 60;
+    if (holding && distance < 210) {
+      // Dunk: leap toward the basket with the ball in hand. The homing below
+      // steers the hip to just under the rim so the hand can slam it home.
+      p.dunkTime = 45;
+      const seconds = 0.6;
+      const vx = clamp((h.x - p.d * 6 - num(hip.x)) / seconds, -300, 300) / 60;
+      const vy = clamp((h.y + 14 - num(hip.y) - 0.5 * 700 * gravity * seconds * seconds) / seconds, -440, -280) / 60;
       impulsePlayer(p, vx, vy);
-      p.av = fix(direction * 0.02); p.legV = fix(direction * 0.01);
+      p.av = fix(direction * 0.008); p.legV = fix(direction * 0.01);
     } else {
       p.dunkTime = 14;
       impulsePlayer(p, direction * 2.4, -4.6);
@@ -206,7 +213,7 @@ export function stepPlayer(p, input, court, holding, tick, moveDir = p.d, hoops 
   const sway = num(sin(fix((p.side ? 1.7 : 0) + p.slot * 0.9 + tick / 60 * 2.2))) * 0.22;
   const target = p.grounded ? sway + (jump ? direction * 0.14 : 0) : p.dunkTime > 0 && holding ? direction * 0.3 : 0;
   p.av += mul(fix(target) - p.angle, fix(p.grounded ? 0.05 : 0.002));
-  if (!p.grounded) p.av += mul(sin(p.angle), fix(0.004));
+  if (!p.grounded) p.av += mul(sin(p.angle), fix(0.003));
   p.av = mul(p.av, fix(p.grounded ? 0.78 : 0.996));
   p.angle += p.av;
   if (p.angle > fix(Math.PI)) p.angle -= fix(Math.PI * 2);
@@ -218,6 +225,15 @@ export function stepPlayer(p, input, court, holding, tick, moveDir = p.d, hoops 
   integrate(hip, gStep(700 * gravity), fix(0.999));
   for (const i of [3, 4, 5, 6]) integrate(p.pts[i], gStep(520 * gravity), fix(0.992));
   placeCore(p); poseArms(p, active); placeCore(p);
+  if (p.dunkTime > 0) {
+    // Dunk: pin the lead hand up toward the rim (zero velocity) so the ball
+    // rides over the hoop instead of lagging behind the fast-moving body.
+    const chest = p.pts[1], hand = p.pts[p.lead], elbow = p.pts[p.lead === 6 ? 5 : 3];
+    const hx = chest.x + fix(p.d * 4), hy = chest.y - fix(20);
+    const ex = chest.x + fix(p.d * 2), ey = chest.y - fix(10);
+    elbow.x = ex; elbow.y = ey; elbow.px = ex; elbow.py = ey;
+    hand.x = hx; hand.y = hy; hand.px = hx; hand.py = hy;
+  }
   p.grounded = groundPlayer(p, fix(COURTS[court].friction));
   if (p.grounded) p.coyote = 5;
   const x = num(hip.x);
@@ -226,6 +242,12 @@ export function stepPlayer(p, input, court, holding, tick, moveDir = p.d, hoops 
   if (x < lo) shiftPlayer(p, lo - x, 0);
   if (x > hi) shiftPlayer(p, hi - x, 0);
   for (const q of p.pts) if (q.y < q.r) { q.y = q.r; q.py = q.y; }
+  // Hard court bounds so no ragdoll point ever leaves the arena.
+  for (const q of p.pts) {
+    if (q.x < fix(-4)) { q.x = fix(-4); q.px = q.x; }
+    if (q.x > fix(484)) { q.x = fix(484); q.px = q.x; }
+    if (q.y > fix(FLOOR)) { q.y = fix(FLOOR); q.py = q.y; }
+  }
   return { press, dunkPress };
 }
 
@@ -256,7 +278,7 @@ export function collideBall(ball, spec, court, players, onBounce, hoops = HOOPS,
   const r = fix(spec.radius), gravity = gStep(spec.gravity * gravityScale);
   integrate(ball, gravity, fix(0.999));
   let vx = ball.x - ball.px, vy = ball.y - ball.py;
-  const max = fix(520 / 60);
+  const max = fix(470 / 60);
   vx = clamp(vx, -max, max); vy = clamp(vy, -max, max);
   ball.px = ball.x - vx; ball.py = ball.y - vy;
   if (ball.y > fix(FLOOR) - r) {
@@ -292,16 +314,29 @@ export function collideBall(ball, spec, court, players, onBounce, hoops = HOOPS,
     if (i === 3 || i === 5 || i === 7 || i === 9) continue;
     const q = p.pts[i], dx = ball.x - q.x, dy = ball.y - q.y, rr = r + q.r;
     const d2 = dx * dx + dy * dy;
-    if (d2 >= rr * rr || d2 === 0) continue;
-    const d = root(d2), nx = div(dx, d), ny = div(dy, d), overlap = rr - d;
-    ball.x += mul(nx, mul(overlap, fix(0.85))); ball.y += mul(ny, mul(overlap, fix(0.85)));
+    if (d2 >= rr * rr) continue;
+    let d = root(d2), nx, ny;
+    if (d === 0) { nx = 0; ny = -FP; d = 1; } // ball dead-center on a point: pop it up
+    else { nx = div(dx, d); ny = div(dy, d); }
+    const overlap = rr - d;
+    ball.x += mul(nx, overlap); ball.y += mul(ny, overlap); // full push-out, no squeeze
     const pushX = mul(nx, mul(overlap, fix(0.15))), pushY = mul(ny, mul(overlap, fix(0.15)));
     const pv = velocity(q);
     if (i === 0 || i === 1 || i === 2 || i >= 7) {
       shiftPlayer(p, -num(pushX), -num(pushY));
       p.av += mul(pushX, fix(0.00002));
     } else move(q, -pushX, -pushY);
-    if (reflect(ball, nx, ny, 0.58, mul(pv.x, fix(0.65)), mul(pv.y, fix(0.65)))) onBounce();
+    if (reflect(ball, nx, ny, 0.5, mul(pv.x, fix(0.65)), mul(pv.y, fix(0.65)))) onBounce();
+    // Pinch escape: a deeply overlapped, slow ball gets a minimum outward push
+    // so it can never sit squeezed between two bodies.
+    if (overlap > fix(1.5)) {
+      const vx = ball.x - ball.px, vy = ball.y - ball.py;
+      const dot = mul(vx, nx) + mul(vy, ny), minOut = fix(1.4);
+      if (dot < minOut) {
+        ball.px = ball.x - (vx + mul(nx, minOut - dot));
+        ball.py = ball.y - (vy + mul(ny, minOut - dot));
+      }
+    }
   }
 }
 

@@ -99,21 +99,22 @@ export class Game {
     this.pickupCD = dunk ? 35 : 12;
     p.charge = 0;
     p.lastShotPower = power;
-    if (dunk && Math.abs(x - target.x) < 30 && y < target.y + 2 && y > target.y - 40) {
-      const vx = clamp(hv.x * 0.5 + bv.x * 0.3 + p.d * 55 + this.random.range(-40, 40), -240, 240);
-      const vy = clamp(130 + this.random.range(0, 80) + hv.y * 0.2, 90, 260);
+    if (dunk && Math.abs(x - target.x) < 30 && y < target.y + 2 && y > target.y - 36) {
+      // Slam: drive the ball down through the hoop, aimed at its center.
+      const vx = clamp((target.x - x) * 2.5 + hv.x * 0.2 + this.random.range(-25, 25), -140, 140);
+      const vy = clamp(200 + hv.y * 0.1 + this.random.range(0, 40), 170, 280);
       setBallPosition(b, x, y, vx, vy);
       this.lastShot = { side, power: 1, dunk: true, speed: Math.hypot(vx, vy) };
       p.dunkTime = 0;
       return;
     }
     const distance = target.x - x;
-    const loft = dunk ? 46 : 62 + Math.abs(distance) * 0.34 + (1 - power) * 14;
-    let dx = distance + hv.x * 0.08 + bv.x * 0.06;
-    let dy = target.y - y - loft + hv.y * 0.08;
+    const loft = dunk ? 46 : 72 + Math.abs(distance) * 0.36 + (1 - power) * 10;
+    let dx = distance + hv.x * 0.045 + bv.x * 0.035;
+    let dy = target.y - y - loft + hv.y * 0.045;
     if (dunk) dx += p.d * 18;
     const length = Math.sqrt(dx * dx + dy * dy) || 1;
-    const speed = dunk ? 250 + 170 * power : 230 + 210 * power;
+    const speed = dunk ? 250 + 170 * power : 222 + 196 * power;
     const vx = clamp(speed * dx / length, -380, 380);
     const vy = clamp(speed * dy / length, -420, 160);
     setBallPosition(b, x, y, vx, vy);
@@ -142,7 +143,7 @@ export class Game {
     if (this.pickupCD > 0) return;
     let best = -1, bestDistance = Infinity;
     for (let index = 0; index < this.players.length; index++) {
-      const p = this.players[index], reach = fix(BALLS[this.ballType].radius + 12) ** 2;
+      const p = this.players[index], reach = fix(BALLS[this.ballType].radius + 14) ** 2;
       for (const i of [4, 6]) {
         const d = handDistance(p, b, i);
         if (d < reach && d < bestDistance) { best = index; bestDistance = d; }
@@ -198,8 +199,8 @@ export class Game {
       setBallPosition(b, num(hand.x) + p.d * 3, num(hand.y) - 4);
       if (p.dunkTime > 0) {
         const h = this.hoops[p.target];
-        if (Math.abs(num(hand.x) - h.x) < 24 && num(hand.y) < h.y - 2 && num(hand.y) > h.y - 38) this.release(index, true);
-        else if (p.dunkTime <= 6) this.release(index, true);
+        if (Math.abs(num(hand.x) - h.x) < 16 && num(hand.y) < h.y + 2 && num(hand.y) > h.y - 34) this.release(index, true);
+        else if (p.dunkTime <= 8) this.release(index, true);
       } else if ((!input.jump && p.charge > 0) || b.holdTicks > 240) {
         this.release(index);
       }
@@ -209,8 +210,20 @@ export class Game {
       const colliders = b.ignoreTicks > 0 ? this.players.filter((_, i) => i !== b.ignore) : this.players;
       collideBall(b, BALLS[this.ballType], this.court, colliders, () => this.bounces++, this.hoops, this.gravity);
       b.spin += (b.x - b.px) / 12;
-      this.staleTicks = Math.abs(b.x - b.px) + Math.abs(b.y - b.py) < fix(0.35) ? this.staleTicks + 1 : 0;
-      if (this.staleTicks > 120) { ballVelocity(b, b.x < fix(WIDTH / 2) ? 50 : -50, -80); this.staleTicks = 0; }
+      this.staleTicks = Math.abs(b.x - b.px) + Math.abs(b.y - b.py) < fix(0.5) ? this.staleTicks + 1 : 0;
+      if (this.staleTicks > 90) { ballVelocity(b, b.x < fix(WIDTH / 2) ? 70 : -70, -110); this.staleTicks = 0; }
+      // Pinch rescue: ball squeezed against a body and barely moving pops free.
+      if (Math.abs(b.x - b.px) + Math.abs(b.y - b.py) < fix(1.2)) {
+        for (const p of this.players) {
+          let hit = false;
+          for (let i = 0; i < p.pts.length; i++) {
+            if (i === 3 || i === 5 || i === 7 || i === 9) continue;
+            const q = p.pts[i], rr = fix(BALLS[this.ballType].radius) + q.r;
+            if (dist2(q, b) < rr * rr) { hit = true; break; }
+          }
+          if (hit) { ballVelocity(b, b.x < fix(WIDTH / 2) ? 60 : -60, -90); break; }
+        }
+      }
       const behindBoard = b.x < fix(this.hoops[0].board - 2) || b.x > fix(this.hoops[1].board + 2);
       this.deadTicks = behindBoard ? this.deadTicks + 1 : 0;
       if (this.deadTicks > 40) { ballVelocity(b, b.x < fix(WIDTH / 2) ? 150 : -150, -180); this.deadTicks = 0; }

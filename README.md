@@ -1,13 +1,15 @@
 # Basket Random 2
 
-A compact, independent pixel-art ragdoll basketball recreation for Android and the browser. It boots to a main menu with a persistent, editable nickname. Normal modes are **2v2**: each side has a front and back player, and one button controls both teammates at once. A separate **1V1** button offers one player per side against a bot, a friend on the same device, or online.
+A compact, independent pixel-art ragdoll basketball recreation for Android and the browser. It boots to a straight-to-the-point main menu — **1 PLAYER** vs CPU or **2 PLAYER** on one device — with a persistent, editable nickname. Normal modes are **2v2**: each side has a front and back player, and one button controls both teammates at once. Smaller **1V1** and **ONLINE** buttons offer one player per side against a bot, a friend on the same device, or online.
 
+- **1 Player** — vs CPU: Noob, Casual, Pro, or LeBron James, with different reaction times, shot timing, blocking, and dunk decisions.
 - **2 Player** — two people on one phone, 2v2, with independent jump and dunk buttons on each side.
-- **Online** — a real matchmaking queue, shared seeded matches, rematches, and disconnect handling. 1v1 and 2v2 queues are kept separate.
-- **Vs Bot** — Noob, Casual, Pro, and LeBron James, with different reaction times, shot timing, blocking, and dunk decisions.
 - **1V1** — the same rules with one player per team: vs bot, friendly local, or online.
+- **Online** — a real matchmaking queue, shared seeded matches, rematches, and disconnect handling. 1v1 and 2v2 queues are kept separate.
 
-First to **5 points** wins. Each basket changes the court, ball, player proportions, jerseys, skin tones, hair, and hoop layout. Rainbow balls score two. Jumping uses a fixed-step, constraint-based ragdoll; grab the ball, hold jump to grip/charge, and release to throw with the swing's momentum. **Dunk is the added mechanic:** it launches a ball-carrying player toward the rim, has a cooldown, and is deliberately missable. Without the ball it is a blocking lunge.
+First to **5 points** wins. Each basket changes the court, ball, player proportions, jerseys, skin tones, hair, and hoop layout — and sometimes the **gravity** (low or heavy) or the hoops start **moving** up and down. Rainbow balls score two. Jumping uses a fixed-step, constraint-based ragdoll; grab the ball, hold jump to grip/charge, and release to throw with the swing's momentum. Shots are deliberately tamer than a slingshot: hold time sets the power, the arc does the rest, and the ball is speed-capped so it can't rocket across the court. **Dunk is the added mechanic:** press dunk with the ball and your player leaps toward the basket with the ball in hand, then slams it down through the hoop. It has a cooldown and is deliberately missable from far out. Without the ball it is a blocking lunge. The ball has pinch protection so it never gets squeezed between bodies, and ragdoll points are hard-clamped to the court. The result screen has a **SHARE SCORE** button (Web Share API, clipboard fallback) for posting your score anywhere.
+
+A synthesized chiptune soundtrack plays in the menu (chill) and during matches (upbeat), with a separate **MUSIC** toggle next to **SOUND**. Baskets trigger confetti, a crowd cheer, and a small screen shake; dunks shake the screen too.
 
 ## Scope and rights
 
@@ -83,7 +85,7 @@ The shell loads bundled assets from a local `https://appassets.androidplatform.n
 
 ## Size and performance
 
-The renderer uses a fixed **480 × 270** canvas, nearest-neighbor scaling, cached court backgrounds, and no image/font downloads. Physics runs at a fixed 60 Hz with bounded catch-up; rendering interpolates independently. Audio is synthesized after a user gesture. The production web payload is roughly **58 KB raw / 22 KB gzip**; `build.mjs` enforces a 160 KB raw ceiling. The APK has a 256 KiB CI ceiling. Actual APK size is printed in the workflow summary.
+The renderer uses a fixed **480 × 270** canvas, nearest-neighbor scaling, cached court backgrounds, and no image/font downloads. Physics runs at a fixed 60 Hz with bounded catch-up; rendering interpolates independently. Audio (sound effects and the chiptune soundtrack) is synthesized after a user gesture. The production web payload is roughly **63 KB raw / 24 KB gzip**; `build.mjs` enforces a 160 KB raw ceiling. The APK has a 256 KiB CI ceiling. Actual APK size is printed in the workflow summary.
 
 These are size and implementation budgets, not a claim of measured 60 FPS on every phone. WebView/device performance varies.
 
